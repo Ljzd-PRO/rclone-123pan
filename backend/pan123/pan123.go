@@ -35,6 +35,7 @@ func init() {
 		Prefix:      "pan123",
 		Description: "123Pan personal account (experimental)",
 		NewFs:       NewFs,
+		CommandHelp: commandHelp,
 		Options: []fs.Option{
 			{Name: "user", Help: "Phone number or email used by the 123Pan personal account.", Required: true, Sensitive: true},
 			{Name: "pass", Help: "123Pan account password.", Required: true, IsPassword: true, Sensitive: true},
@@ -218,4 +219,5 @@ var _ fs.DirCacheFlusher = (*Fs)(nil)
 var _ fs.PutStreamer = (*Fs)(nil)
 var _ fs.Mover = (*Fs)(nil)
 var _ fs.DirMover = (*Fs)(nil)
+var _ fs.Commander = (*Fs)(nil)
 var _ dircache.DirCacher = (*Fs)(nil)

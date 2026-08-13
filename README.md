@@ -30,8 +30,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | Legacy AWS SDK v2 and bounded presigned multipart uploads | Implemented and unit tested |
 | Recoverable staging/backup object replacement | Implemented with fault tests |
 | Safe mkdir/remove/rmdir and ID-verified Move/DirMove | Implemented and unit tested |
-| Offline backend commands | In progress |
-| Mock and fault-injection suite | Planned |
+| Offline add/status/delete backend commands | Implemented and unit tested |
+| Cross-rclone contract and extended fault gates | In progress |
 | Dedicated-account live validation | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |
 
