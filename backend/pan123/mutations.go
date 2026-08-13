@@ -100,16 +100,23 @@ func (o *Object) Remove(ctx context.Context) error {
 
 // Rmdir removes only a non-root directory proven empty by two complete lists.
 func (f *Fs) Rmdir(ctx context.Context, dir string) error {
-	if strings.Trim(dir, "/") == "" {
-		return errors.New("refusing to remove the logical 123Pan root")
-	}
 	dirIDString, err := f.dirCache.FindDir(ctx, dir, false)
 	if err != nil {
 		return err
 	}
-	dirID, err := parseID(dirIDString, false)
+	dirID, err := parseID(dirIDString, true)
 	if err != nil {
 		return err
+	}
+	configuredRootID, err := parseID(f.opt.RootFolderID, true)
+	if err != nil {
+		return err
+	}
+	if dirID == configuredRootID {
+		return errors.New("refusing to remove the configured 123Pan root")
+	}
+	if dirID == 0 {
+		return errorsNewProtocol("refusing to remove object ID 0")
 	}
 	leaf, parentIDString, err := f.dirCache.FindPath(ctx, dir, false)
 	if err != nil {
@@ -126,9 +133,11 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 		objectPathLockKey(parentID, f.opt.Enc.FromStandardName(leaf)),
 	)
 	defer unlock()
-	parentRemote, _ := dircache.SplitPath(dir)
-	if err := f.verifyDirectoryPathID(ctx, parentRemote, parentID); err != nil {
-		return err
+	if dir != "" {
+		parentRemote, _ := dircache.SplitPath(dir)
+		if err := f.verifyDirectoryPathID(ctx, parentRemote, parentID); err != nil {
+			return err
+		}
 	}
 	for range 2 {
 		children, err := f.listAll(ctx, dirID)

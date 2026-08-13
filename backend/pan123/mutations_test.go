@@ -276,6 +276,22 @@ func TestRmdirRejectsRootAndNonEmpty(t *testing.T) {
 	}
 }
 
+func TestRmdirCanRemoveCommandRootBelowConfiguredRoot(t *testing.T) {
+	store := newMutationStore(t)
+	f := newMutationFs(t, store)
+	f.root = "dir"
+	f.dirCache = dircache.New(f.root, "0", f)
+	if err := f.resolveRoot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Rmdir(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := store.get(10); found {
+		t.Fatal("command root below configured root was not removed")
+	}
+}
+
 func TestRemoveRejectsStaleIdentityAndIsIdempotent(t *testing.T) {
 	store := newMutationStore(t)
 	f := newMutationFs(t, store)
