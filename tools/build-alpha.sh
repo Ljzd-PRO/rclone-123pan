@@ -1,0 +1,60 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+
+plugin_version=${PLUGIN_VERSION:-0.1.0-alpha.1}
+rclone_version=v1.75.0
+source_commit=$(git rev-parse HEAD)
+source_epoch=${SOURCE_DATE_EPOCH:-$(git show -s --format=%ct HEAD)}
+dist="$root/dist"
+stage="$dist/stage"
+
+rm -rf "$dist"
+mkdir -p "$stage"
+
+sbom="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}.cdx.json"
+go run ./tools/sbom -output "$sbom" -version "$plugin_version+rclone-$rclone_version" -commit "$source_commit"
+
+go_version=$(go version | sed 's/"/\\"/g')
+provenance="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}.provenance.json"
+printf '{\n  "plugin_version": "%s",\n  "rclone_version": "%s",\n  "rclone_commit": "%s",\n  "source_commit": "%s",\n  "source_date_epoch": %s,\n  "go_version": "%s",\n  "build_tags": ["noselfupdate"],\n  "cgo_enabled": false\n}\n' \
+  "$plugin_version" "$rclone_version" "9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048" "$source_commit" "$source_epoch" "$go_version" > "$provenance"
+
+targets='linux amd64
+linux arm64
+windows amd64
+darwin amd64
+darwin arm64'
+
+echo "$targets" | while read -r goos goarch; do
+  package="rclone-123pan_${plugin_version}_rclone-${rclone_version}_${goos}_${goarch}"
+  package_dir="$stage/$package"
+  mkdir -p "$package_dir"
+  binary="$package_dir/rclone-123"
+  if [ "$goos" = windows ]; then
+    binary="$binary.exe"
+  fi
+  echo "building $goos/$goarch"
+  CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
+    -buildvcs=false -trimpath -tags noselfupdate \
+    -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=${plugin_version}-123pan" \
+    -o "$binary" ./cmd/rclone-123
+  go version -m "$binary" > "$package_dir/BUILDINFO.txt"
+  cp README.md LICENSING.md "$sbom" "$provenance" "$package_dir/"
+  find "$package_dir" -exec touch -h -d "@$source_epoch" {} +
+  if [ "$goos" = windows ]; then
+    (cd "$stage" && zip -X -q -r "$dist/$package.zip" "$package")
+  else
+    tar --sort=name --mtime="@$source_epoch" --owner=0 --group=0 --numeric-owner -C "$stage" -cf - "$package" | gzip -n > "$dist/$package.tar.gz"
+  fi
+done
+
+rm -rf "$stage"
+if command -v sha256sum >/dev/null 2>&1; then
+  (cd "$dist" && sha256sum ./*.tar.gz ./*.zip ./*.json | sort -k2 > SHA256SUMS)
+else
+  (cd "$dist" && shasum -a 256 ./*.tar.gz ./*.zip ./*.json | sort -k2 > SHA256SUMS)
+fi
+echo "internal alpha artifacts written to $dist"

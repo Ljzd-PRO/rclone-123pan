@@ -47,6 +47,14 @@ every created ID, and clean only those IDs. A stable release additionally
 requires the planned 205-file/three-page, zero-byte, 16 MiB+1, rapid upload,
 move/rename/delete, full-download MD5, mount smoke, and seven-day canary gates.
 
+The manually triggered internal-alpha workflow uses `tools/build-alpha.sh` to
+cross-build all five supported targets with Go 1.25.0, `CGO_ENABLED=0`,
+`-trimpath`, `-buildvcs=false`, and mandatory `noselfupdate`. It normalizes
+archive ownership and timestamps to the source commit, strips gzip/zip
+metadata, emits one deterministic CycloneDX 1.6 module SBOM and provenance
+record, and verifies `SHA256SUMS`. Artifacts remain private and expire after
+seven days; the workflow has no release or package-write permission.
+
 Stable release is blocked until a dedicated empty test account and isolated
 non-zero root are available. Live tests must preserve external sentinel files,
 operate only in randomly named `rclone-test-[a-z0-9]{12}` directories, and

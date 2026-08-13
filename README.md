@@ -80,3 +80,10 @@ replacement recovery is documented in [recovery](docs/recovery.md).
 into its `backend/all`, and compiles the upstream operations, sync, VFS, and
 bisync test packages. It runs destructive `test_all` only when all documented
 live-test guard variables are deliberately supplied.
+
+The manual internal-alpha workflow builds reproducible compressed archives for
+Linux amd64/arm64, Windows amd64, and macOS amd64/arm64, plus SHA-256 checksums,
+a deterministic CycloneDX 1.6 SBOM, embedded Go build information, and build
+provenance. It uploads only a seven-day private workflow artifact and never
+creates a public release. Do not distribute those artifacts until the license
+and live-account gates are both cleared.
