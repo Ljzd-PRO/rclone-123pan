@@ -218,41 +218,35 @@ func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source 
 		}
 		batch := &uploadURLBatch{urls: urls, batch: batchRange, single: single, upload: upload, fs: f}
 		group, groupCtx := errgroup.WithContext(ctx)
-		jobs := make(chan uploadPart)
-		for range min(int64(f.opt.UploadConcurrency), batchRange.end-batchRange.start+1) {
+		concurrency := min(int64(f.opt.UploadConcurrency), batchRange.end-batchRange.start+1)
+		slots := make(chan struct{}, concurrency)
+		var producerErr error
+		for number := batchRange.start; number <= batchRange.end; number++ {
+			select {
+			case <-groupCtx.Done():
+				producerErr = groupCtx.Err()
+			case slots <- struct{}{}:
+			}
+			if producerErr != nil {
+				break
+			}
+			offset := (number - 1) * uploadChunkSize
+			partSize := min(uploadChunkSize, max(source.size-offset, 0))
+			data, readErr := readExactPart(reader, partSize)
+			if readErr != nil {
+				<-slots
+				producerErr = fmt.Errorf("read upload part %d: %w", number, readErr)
+				break
+			}
+			part := uploadPart{number: number, data: data}
 			group.Go(func() error {
-				for part := range jobs {
-					if err := f.putPresignedPart(groupCtx, batch, part); err != nil {
-						return err
-					}
-				}
-				return nil
+				defer func() { <-slots }()
+				return f.putPresignedPart(groupCtx, batch, part)
 			})
 		}
-		producerErr := make(chan error, 1)
-		go func() {
-			defer close(jobs)
-			for part := batchRange.start; part <= batchRange.end; part++ {
-				offset := (part - 1) * uploadChunkSize
-				partSize := min(uploadChunkSize, max(source.size-offset, 0))
-				data, err := readExactPart(reader, partSize)
-				if err != nil {
-					producerErr <- fmt.Errorf("read upload part %d: %w", part, err)
-					return
-				}
-				select {
-				case <-groupCtx.Done():
-					producerErr <- groupCtx.Err()
-					return
-				case jobs <- uploadPart{number: part, data: data}:
-				}
-			}
-			producerErr <- nil
-		}()
 		workerErr := group.Wait()
-		readErr := <-producerErr
-		if readErr != nil {
-			return readErr
+		if producerErr != nil {
+			return producerErr
 		}
 		if workerErr != nil {
 			return workerErr

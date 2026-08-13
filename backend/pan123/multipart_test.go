@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ljzd/rclone-123pan/backend/pan123/api"
 )
@@ -54,6 +55,10 @@ type presignedHarness struct {
 	forbidOne atomic.Bool
 	mu        sync.Mutex
 	parts     map[int64][]byte
+	block     <-chan struct{}
+	started   chan<- int64
+	active    atomic.Int64
+	maxActive atomic.Int64
 }
 
 func (h *presignedHarness) control() http.Handler {
@@ -93,6 +98,16 @@ func (h *presignedHarness) data() http.Handler {
 			h.t.Error("Authorization leaked to presigned upload")
 		}
 		h.putCalls.Add(1)
+		active := h.active.Add(1)
+		defer h.active.Add(-1)
+		for current := h.maxActive.Load(); active > current && !h.maxActive.CompareAndSwap(current, active); current = h.maxActive.Load() {
+		}
+		if h.started != nil {
+			h.started <- active
+		}
+		if h.block != nil {
+			<-h.block
+		}
 		generation := r.URL.Query().Get("generation")
 		if h.forbidOne.Load() && generation == "1" {
 			w.WriteHeader(http.StatusForbidden)
@@ -114,6 +129,43 @@ func (h *presignedHarness) data() http.Handler {
 		h.mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	})
+}
+
+func TestPresignedReadsNoMoreThanActivePayloads(t *testing.T) {
+	release := make(chan struct{})
+	started := make(chan int64, 3)
+	h := &presignedHarness{t: t, parts: make(map[int64][]byte), block: release, started: started}
+	f := newPresignedTestFs(t, h)
+	f.opt.UploadConcurrency = 2
+	data := bytes.Repeat([]byte{'x'}, int(2*uploadChunkSize+1))
+	digest := md5.Sum(data)
+	reader := &countingReader{reader: bytes.NewReader(data)}
+	source := &preparedSource{reader: reader, size: int64(len(data)), md5: hex.EncodeToString(digest[:])}
+	done := make(chan error, 1)
+	go func() {
+		done <- f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket"}, source)
+	}()
+	for range 2 {
+		select {
+		case <-started:
+		case err := <-done:
+			t.Fatalf("upload stopped before filling concurrency slots: %v", err)
+		case <-time.After(time.Second):
+			t.Fatal("upload did not fill concurrency slots")
+		}
+	}
+	// Give the producer an opportunity to over-read while both PUTs are held.
+	time.Sleep(20 * time.Millisecond)
+	if got, want := reader.read.Load(), int64(2*uploadChunkSize); got != want {
+		t.Fatalf("source read %d bytes with two active slots, want %d", got, want)
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if got := h.maxActive.Load(); got != 2 {
+		t.Fatalf("maximum active data PUTs = %d, want 2", got)
+	}
 }
 
 func newPresignedTestFs(t *testing.T, harness *presignedHarness) *Fs {
