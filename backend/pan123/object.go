@@ -68,8 +68,5 @@ func (o *Object) Hash(_ context.Context, ty hash.Type) (string, error) {
 
 func (o *Object) SetModTime(context.Context, time.Time) error { return fs.ErrorCantSetModTime }
 
-// Remove is implemented by the safe-mutations milestone.
-func (o *Object) Remove(context.Context) error { return fs.ErrorNotImplemented }
-
 var _ fs.Object = (*Object)(nil)
 var _ fs.IDer = (*Object)(nil)

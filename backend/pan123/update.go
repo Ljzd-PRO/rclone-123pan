@@ -30,6 +30,13 @@ func newKeyedLocks() *keyedLocks { return &keyedLocks{locks: make(map[string]*lo
 func (k *keyedLocks) lock(keys ...string) func() {
 	keys = append([]string(nil), keys...)
 	sort.Strings(keys)
+	unique := keys[:0]
+	for _, key := range keys {
+		if len(unique) == 0 || unique[len(unique)-1] != key {
+			unique = append(unique, key)
+		}
+	}
+	keys = unique
 	entries := make([]*lockEntry, 0, len(keys))
 	k.mu.Lock()
 	for _, key := range keys {

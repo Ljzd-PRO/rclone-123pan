@@ -166,11 +166,6 @@ func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (string, bool, e
 	return strconv.FormatInt(item.FileID, 10), true, nil
 }
 
-// CreateDir is enabled in the directory-mutation milestone.
-func (f *Fs) CreateDir(context.Context, string, string) (string, error) {
-	return "", fs.ErrorNotImplemented
-}
-
 // List returns a complete, consistency-checked directory.
 func (f *Fs) List(ctx context.Context, dir string) (fs.DirEntries, error) {
 	id, err := f.dirCache.FindDir(ctx, dir, false)

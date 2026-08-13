@@ -16,6 +16,11 @@ assert either the fully verified replacement or the exact original object is
 the sole visible target; an incomplete rollback must return explicit recovery
 IDs rather than performing name-pattern cleanup.
 
+Mutation tests cover lost mkdir responses, two-pass empty Rmdir, root and
+non-empty guards, stale object snapshots, idempotent Remove, combined
+move+rename, directory subtree rejection, and dircache invalidation. All mock
+deletions require the exact ID and current server name.
+
 Stable release is blocked until a dedicated empty test account and isolated
 non-zero root are available. Live tests must preserve external sentinel files,
 operate only in randomly named `rclone-test-[a-z0-9]{12}` directories, and

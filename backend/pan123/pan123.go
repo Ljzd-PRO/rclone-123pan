@@ -202,12 +202,6 @@ func (f *Fs) PutStream(ctx context.Context, in io.Reader, src fs.ObjectInfo, opt
 	return f.Put(ctx, in, src, options...)
 }
 
-// Mkdir is implemented by the mutations milestone.
-func (f *Fs) Mkdir(context.Context, string) error { return fs.ErrorNotImplemented }
-
-// Rmdir is implemented by the mutations milestone.
-func (f *Fs) Rmdir(context.Context, string) error { return fs.ErrorNotImplemented }
-
 // Disconnect invalidates the server session and clears the cached token.
 func (f *Fs) Disconnect(ctx context.Context) error {
 	err := f.client.do(ctx, "POST", api.LogoutPath, struct{}{}, nil)
@@ -222,4 +216,6 @@ var _ fs.Abouter = (*Fs)(nil)
 var _ fs.UserInfoer = (*Fs)(nil)
 var _ fs.DirCacheFlusher = (*Fs)(nil)
 var _ fs.PutStreamer = (*Fs)(nil)
+var _ fs.Mover = (*Fs)(nil)
+var _ fs.DirMover = (*Fs)(nil)
 var _ dircache.DirCacher = (*Fs)(nil)
