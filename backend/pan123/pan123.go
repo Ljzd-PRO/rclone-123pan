@@ -3,6 +3,7 @@ package pan123
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -125,6 +126,13 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, fmt.Errorf("validate 123Pan account: invalid UID %d", user.UID)
 	}
 
+	// Validate the configured ID independently from the command path. The
+	// command path itself may legitimately not exist yet (for example
+	// `rclone mkdir remote:new-directory`).
+	if _, err := cListAll(ctx, c, opt, rootID); err != nil {
+		return nil, fmt.Errorf("validate configured 123Pan root folder ID: %w", err)
+	}
+
 	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx), locks: locksForUID(user.UID), stageName: randomStageName}
 	f.dirCache = dircache.New(f.root, opt.RootFolderID, f)
 	f.features = (&fs.Features{
@@ -133,21 +141,69 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		PartialUploads:          true,
 		DuplicateFiles:          false,
 	}).Fill(ctx, f)
-	if err := f.dirCache.FindRoot(ctx, false); err != nil {
-		return f, fmt.Errorf("resolve 123Pan root: %w", err)
-	}
-	resolvedID, err := f.dirCache.RootID(ctx, false)
-	if err != nil {
-		return f, fmt.Errorf("resolve 123Pan root ID: %w", err)
-	}
-	rootID, err = strconv.ParseInt(resolvedID, 10, 64)
-	if err != nil || rootID < 0 {
-		return f, errorsNewProtocol("resolved root has an invalid ID")
-	}
-	if _, err := f.listAll(ctx, rootID); err != nil {
-		return f, fmt.Errorf("validate 123Pan root directory: %w", err)
+	if err := f.resolveRoot(ctx); err != nil {
+		return f, err
 	}
 	return f, nil
+}
+
+// cListAll validates the configured root before an Fs exists. It deliberately
+// uses the same strict listing implementation as normal operations.
+func cListAll(ctx context.Context, client *apiClient, opt Options, parentID int64) ([]api.File, error) {
+	temporary := &Fs{client: client, opt: opt}
+	return temporary.listAll(ctx, parentID)
+}
+
+// resolveRoot follows normal rclone NewFs semantics: an absent command root is
+// allowed so Mkdir can create it, while a root naming an existing file returns
+// fs.ErrorIsFile with the Fs adjusted to the parent directory.
+func (f *Fs) resolveRoot(ctx context.Context) error {
+	err := f.dirCache.FindRoot(ctx, false)
+	if err == nil {
+		resolvedID, rootErr := f.dirCache.RootID(ctx, false)
+		if rootErr != nil {
+			return fmt.Errorf("resolve 123Pan root ID: %w", rootErr)
+		}
+		rootID, parseErr := strconv.ParseInt(resolvedID, 10, 64)
+		if parseErr != nil || rootID < 0 {
+			return errorsNewProtocol("resolved root has an invalid ID")
+		}
+		if _, listErr := f.listAll(ctx, rootID); listErr != nil {
+			return fmt.Errorf("validate 123Pan root directory: %w", listErr)
+		}
+		return nil
+	}
+	if !errors.Is(err, fs.ErrorDirNotFound) && !errors.Is(err, fs.ErrorIsFile) {
+		return fmt.Errorf("resolve 123Pan root: %w", err)
+	}
+
+	parentRoot, leaf := dircache.SplitPath(f.root)
+	temporary := *f
+	temporary.root = parentRoot
+	temporary.dirCache = dircache.New(parentRoot, f.opt.RootFolderID, &temporary)
+	if parentErr := temporary.dirCache.FindRoot(ctx, false); parentErr != nil {
+		if errors.Is(parentErr, fs.ErrorDirNotFound) {
+			f.dirCache = dircache.New(f.root, f.opt.RootFolderID, f)
+			return nil
+		}
+		return fmt.Errorf("resolve parent of missing 123Pan root: %w", parentErr)
+	}
+	if _, objectErr := temporary.NewObject(ctx, leaf); objectErr != nil {
+		if errors.Is(objectErr, fs.ErrorObjectNotFound) {
+			f.dirCache = dircache.New(f.root, f.opt.RootFolderID, f)
+			return nil
+		}
+		return objectErr
+	}
+	f.root = temporary.root
+	f.dirCache = temporary.dirCache
+	f.features = (&fs.Features{
+		CaseInsensitive:         false,
+		CanHaveEmptyDirectories: true,
+		PartialUploads:          true,
+		DuplicateFiles:          false,
+	}).Fill(ctx, f)
+	return fs.ErrorIsFile
 }
 
 func errorsNewConfig(message string) error {

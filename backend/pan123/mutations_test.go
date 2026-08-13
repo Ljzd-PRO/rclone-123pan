@@ -136,7 +136,7 @@ func newMutationFs(t *testing.T, store *mutationStore) *Fs {
 	client, _ := testClient(t, store.handler(), "person@example.com", "token")
 	f := &Fs{
 		name:      "test",
-		opt:       Options{Enc: defaultEncoding, VerifyTimeout: fs.Duration(time.Second)},
+		opt:       Options{Enc: defaultEncoding, RootFolderID: "0", VerifyTimeout: fs.Duration(time.Second)},
 		client:    client,
 		uid:       42,
 		locks:     newKeyedLocks(),
@@ -231,6 +231,36 @@ func TestWriteParentFreshWalkRejectsStaleDircacheID(t *testing.T) {
 	store.mu.Unlock()
 	if err := f.verifyDirectoryPathID(context.Background(), "dir", 10); err == nil {
 		t.Fatal("accepted a deleted parent directory ID")
+	}
+}
+
+func TestResolveRootAllowsMissingDirectoryForMkdir(t *testing.T) {
+	store := newMutationStore(t)
+	f := newMutationFs(t, store)
+	f.root = "new-root"
+	f.dirCache = dircache.New(f.root, "0", f)
+	if err := f.resolveRoot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Mkdir(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	item, found, err := f.findChild(context.Background(), 0, "new-root")
+	if err != nil || !found || !item.IsDir() {
+		t.Fatalf("missing root was not created: item=%#v found=%v err=%v", item, found, err)
+	}
+}
+
+func TestResolveRootReturnsIsFileAndParentFs(t *testing.T) {
+	store := newMutationStore(t)
+	f := newMutationFs(t, store)
+	f.root = "file"
+	f.dirCache = dircache.New(f.root, "0", f)
+	if err := f.resolveRoot(context.Background()); err != fs.ErrorIsFile {
+		t.Fatalf("got %v, want ErrorIsFile", err)
+	}
+	if f.root != "" {
+		t.Fatalf("file root was not adjusted to parent: %q", f.root)
 	}
 }
 
