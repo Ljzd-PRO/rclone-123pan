@@ -1,12 +1,30 @@
-// Package pan123 implements an experimental 123Pan personal account backend.
+// Package pan123 implements an experimental 123Pan personal-account backend.
 package pan123
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
+	"time"
 
+	"github.com/ljzd/rclone-123pan/backend/pan123/api"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/encoder"
 )
+
+const defaultEncoding = encoder.Display |
+	encoder.EncodeWin |
+	encoder.EncodeBackSlash |
+	encoder.EncodeLeftSpace |
+	encoder.EncodeRightSpace |
+	encoder.EncodeRightPeriod |
+	encoder.EncodeInvalidUtf8
 
 func init() {
 	fs.Register(&fs.RegInfo{
@@ -14,11 +32,148 @@ func init() {
 		Prefix:      "pan123",
 		Description: "123Pan personal account (experimental)",
 		NewFs:       NewFs,
+		Options: []fs.Option{
+			{Name: "user", Help: "Phone number or email used by the 123Pan personal account.", Required: true, Sensitive: true},
+			{Name: "pass", Help: "123Pan account password.", Required: true, IsPassword: true, Sensitive: true},
+			{Name: "access_token", Help: "Cached personal-account access token.", Sensitive: true, Hide: fs.OptionHideBoth},
+			{Name: "root_folder_id", Help: "Numeric folder ID used as the account root.", Default: "0", Advanced: true, Sensitive: true},
+			{Name: "platform", Help: "Platform request header. Protocol signatures always use web/3.", Default: "web", Advanced: true},
+			{Name: "upload_concurrency", Help: "Maximum number of data parts uploaded concurrently for one file.", Default: 3, Advanced: true},
+			{Name: "hash_memory_limit", Help: "Maximum source size cached in memory when an MD5 must be calculated.", Default: fs.SizeSuffix(10 * fs.Mebi), Advanced: true},
+			{Name: "api_min_interval", Help: "Minimum interval between requests to the same control endpoint.", Default: fs.Duration(700 * time.Millisecond), Advanced: true},
+			{Name: "verify_timeout", Help: "Maximum time to wait for a write postcondition.", Default: fs.Duration(60 * time.Second), Advanced: true},
+			{Name: "encoding", Help: "The encoding for the backend.", Default: defaultEncoding, Advanced: true},
+		},
 	})
 }
 
-// NewFs is the backend constructor. The implementation is added in later
-// milestones; keeping the constructor explicit makes this scaffold buildable.
-func NewFs(context.Context, string, string, configmap.Mapper) (fs.Fs, error) {
+// Options defines persisted remote configuration.
+type Options struct {
+	User              string               `config:"user"`
+	Pass              string               `config:"pass"`
+	AccessToken       string               `config:"access_token"`
+	RootFolderID      string               `config:"root_folder_id"`
+	Platform          string               `config:"platform"`
+	UploadConcurrency int                  `config:"upload_concurrency"`
+	HashMemoryLimit   fs.SizeSuffix        `config:"hash_memory_limit"`
+	APIMinInterval    fs.Duration          `config:"api_min_interval"`
+	VerifyTimeout     fs.Duration          `config:"verify_timeout"`
+	Enc               encoder.MultiEncoder `config:"encoding"`
+}
+
+// Fs represents a 123Pan personal-account remote.
+type Fs struct {
+	name     string
+	root     string
+	opt      Options
+	client   *apiClient
+	features *fs.Features
+}
+
+// NewFs constructs and validates a personal-account remote.
+func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
+	var opt Options
+	if err := configstruct.Set(m, &opt); err != nil {
+		return nil, fmt.Errorf("parse 123Pan configuration: %w", err)
+	}
+	if opt.User == "" {
+		return nil, errorsNewConfig("user is required")
+	}
+	if opt.Pass == "" {
+		return nil, errorsNewConfig("pass is required")
+	}
+	if opt.UploadConcurrency < 1 || opt.UploadConcurrency > 10 {
+		return nil, errorsNewConfig("upload_concurrency must be in 1..10")
+	}
+	if opt.HashMemoryLimit < 0 {
+		return nil, errorsNewConfig("hash_memory_limit must not be negative")
+	}
+	if time.Duration(opt.APIMinInterval) < 0 {
+		return nil, errorsNewConfig("api_min_interval must not be negative")
+	}
+	if time.Duration(opt.VerifyTimeout) <= 0 {
+		return nil, errorsNewConfig("verify_timeout must be positive")
+	}
+	rootID, err := strconv.ParseInt(opt.RootFolderID, 10, 64)
+	if err != nil || rootID < 0 {
+		return nil, errorsNewConfig("root_folder_id must be a non-negative integer")
+	}
+	password, err := obscure.Reveal(opt.Pass)
+	if err != nil {
+		return nil, fmt.Errorf("reveal 123Pan password: %w", err)
+	}
+	c := newAPIClient(ctx, productionLoginRoot, productionAPIRoot, m, opt.User, password, opt.Platform, opt.AccessToken, time.Duration(opt.APIMinInterval))
+	if opt.AccessToken == "" {
+		if err := c.login(ctx, ""); err != nil {
+			return nil, fmt.Errorf("authenticate 123Pan account: %w", err)
+		}
+	}
+	var user api.UserInfoData
+	if err := c.do(ctx, "GET", api.UserInfoPath, nil, &user); err != nil {
+		return nil, fmt.Errorf("validate 123Pan account: %w", err)
+	}
+	if user.UID <= 0 {
+		return nil, fmt.Errorf("validate 123Pan account: invalid UID %d", user.UID)
+	}
+
+	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c}
+	f.features = (&fs.Features{
+		CaseInsensitive:         false,
+		CanHaveEmptyDirectories: true,
+		PartialUploads:          true,
+		DuplicateFiles:          false,
+	}).Fill(ctx, f)
+	return f, nil
+}
+
+func errorsNewConfig(message string) error {
+	return fmt.Errorf("invalid 123Pan configuration: %s", message)
+}
+
+// Name returns the configured remote name.
+func (f *Fs) Name() string { return f.name }
+
+// Root returns the configured path root.
+func (f *Fs) Root() string { return f.root }
+
+// String describes the remote without including credentials.
+func (f *Fs) String() string { return "123Pan personal account root '" + f.root + "'" }
+
+// Precision reports that server modification times cannot be set.
+func (f *Fs) Precision() time.Duration { return fs.ModTimeNotSupported }
+
+// Hashes reports the verified object checksum type.
+func (f *Fs) Hashes() hash.Set { return hash.Set(hash.MD5) }
+
+// Features returns optional rclone capabilities.
+func (f *Fs) Features() *fs.Features { return f.features }
+
+// List is implemented by the listing milestone.
+func (f *Fs) List(context.Context, string) (fs.DirEntries, error) { return nil, fs.ErrorNotImplemented }
+
+// NewObject is implemented by the listing milestone.
+func (f *Fs) NewObject(context.Context, string) (fs.Object, error) {
 	return nil, fs.ErrorNotImplemented
 }
+
+// Put is implemented by the upload milestone.
+func (f *Fs) Put(context.Context, io.Reader, fs.ObjectInfo, ...fs.OpenOption) (fs.Object, error) {
+	return nil, fs.ErrorNotImplemented
+}
+
+// Mkdir is implemented by the mutations milestone.
+func (f *Fs) Mkdir(context.Context, string) error { return fs.ErrorNotImplemented }
+
+// Rmdir is implemented by the mutations milestone.
+func (f *Fs) Rmdir(context.Context, string) error { return fs.ErrorNotImplemented }
+
+// Disconnect invalidates the server session and clears the cached token.
+func (f *Fs) Disconnect(ctx context.Context) error {
+	err := f.client.do(ctx, "POST", api.LogoutPath, struct{}{}, nil)
+	f.client.setToken("")
+	f.client.config.Set("access_token", "")
+	return err
+}
+
+var _ fs.Fs = (*Fs)(nil)
+var _ fs.Disconnecter = (*Fs)(nil)

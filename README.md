@@ -23,7 +23,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | Custom static rclone entry point | Implemented |
 | `123pan` backend registration | Implemented |
 | Protocol types, signing, strict envelopes, redaction | Implemented and unit tested |
-| Authentication and file operations | In progress |
+| Password login, cached token, coordinated 401 refresh, logout | Implemented and unit tested |
+| File operations | In progress |
 | Mock and fault-injection suite | Planned |
 | Dedicated-account live validation | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |
