@@ -22,7 +22,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | --- | --- |
 | Custom static rclone entry point | Implemented |
 | `123pan` backend registration | Implemented |
-| Authentication and file operations | Planned |
+| Protocol types, signing, strict envelopes, redaction | Implemented and unit tested |
+| Authentication and file operations | In progress |
 | Mock and fault-injection suite | Planned |
 | Dedicated-account live validation | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |
@@ -41,4 +42,3 @@ the custom binary with an official build that does not contain this backend.
 
 See [backend documentation](docs/123pan.md), [security](docs/security.md), and
 [testing](docs/testing.md) for the intended behavior and release gates.
-
