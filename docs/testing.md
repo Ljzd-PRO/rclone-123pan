@@ -10,6 +10,12 @@ v2 upload modes. Large boundary plans are tested without allocating their full
 payload; streaming tests prove data order and content at representative
 boundaries.
 
+The Update state machine is exercised with faults before application and after
+application with a lost response at both rename steps and backup trash. Tests
+assert either the fully verified replacement or the exact original object is
+the sole visible target; an incomplete rollback must return explicit recovery
+IDs rather than performing name-pattern cleanup.
+
 Stable release is blocked until a dedicated empty test account and isolated
 non-zero root are available. Live tests must preserve external sentinel files,
 operate only in randomly named `rclone-test-[a-z0-9]{12}` directories, and

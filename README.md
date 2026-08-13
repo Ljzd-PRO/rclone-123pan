@@ -28,7 +28,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | Verified download, Range/Seek/suffix, one-time 403 refresh | Implemented and unit tested |
 | Replayable sources, zero-byte preparation and verified rapid upload | Implemented and unit tested |
 | Legacy AWS SDK v2 and bounded presigned multipart uploads | Implemented and unit tested |
-| Recoverable replacement and write operations | In progress |
+| Recoverable staging/backup object replacement | Implemented with fault tests |
+| Directory and move operations | In progress |
 | Mock and fault-injection suite | Planned |
 | Dedicated-account live validation | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |

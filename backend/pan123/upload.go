@@ -192,3 +192,35 @@ func tempSpoolName(source *preparedSource) string {
 	}
 	return filepath.Base(file.Name())
 }
+
+func (f *Fs) uploadNew(ctx context.Context, in io.Reader, src fs.ObjectInfo, parentID int64, name, remote string) (*Object, error) {
+	prepared, err := prepareSource(ctx, in, src, int64(f.opt.HashMemoryLimit))
+	if err != nil {
+		return nil, err
+	}
+	defer prepared.cleanup()
+	o, upload, err := f.rapidUpload(ctx, parentID, name, prepared, in)
+	if err != nil {
+		return nil, err
+	}
+	if o != nil {
+		o.remote = remote
+		return o, nil
+	}
+	if err := f.uploadData(ctx, upload, prepared); err != nil {
+		var ambiguous *ambiguousCompleteError
+		if errors.As(err, &ambiguous) {
+			item, verifyErr := f.verifyUpload(ctx, parentID, name, upload.FileID, prepared.size, prepared.md5)
+			if verifyErr == nil {
+				return newObject(f, remote, parentID, *item), nil
+			}
+			return nil, fmt.Errorf("%w; postcondition check also failed: %v", err, verifyErr)
+		}
+		return nil, fmt.Errorf("upload data for file ID %d: %w", upload.FileID, err)
+	}
+	item, verifyErr := f.verifyUpload(ctx, parentID, name, upload.FileID, prepared.size, prepared.md5)
+	if verifyErr != nil {
+		return nil, verifyErr
+	}
+	return newObject(f, remote, parentID, *item), nil
+}

@@ -3,7 +3,6 @@ package pan123
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -75,6 +74,8 @@ type Fs struct {
 	dirCache       *dircache.DirCache
 	uid            int64
 	downloadClient *http.Client
+	locks          *keyedLocks
+	stageName      func(string) (string, error)
 }
 
 // NewFs constructs and validates a personal-account remote.
@@ -123,7 +124,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, fmt.Errorf("validate 123Pan account: invalid UID %d", user.UID)
 	}
 
-	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx)}
+	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx), locks: newKeyedLocks(), stageName: randomStageName}
 	f.dirCache = dircache.New(f.root, opt.RootFolderID, f)
 	f.features = (&fs.Features{
 		CaseInsensitive:         false,
@@ -192,35 +193,7 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 		o := newObject(f, src.Remote(), parentID, *existing)
 		return o, o.Update(ctx, in, src, options...)
 	}
-	prepared, err := prepareSource(ctx, in, src, int64(f.opt.HashMemoryLimit))
-	if err != nil {
-		return nil, err
-	}
-	defer prepared.cleanup()
-	o, upload, err := f.rapidUpload(ctx, parentID, leaf, prepared, in)
-	if err != nil {
-		return nil, err
-	}
-	if o != nil {
-		o.remote = src.Remote()
-		return o, nil
-	}
-	if err := f.uploadData(ctx, upload, prepared); err != nil {
-		var ambiguous *ambiguousCompleteError
-		if errors.As(err, &ambiguous) {
-			item, verifyErr := f.verifyUpload(ctx, parentID, leaf, upload.FileID, prepared.size, prepared.md5)
-			if verifyErr == nil {
-				return newObject(f, src.Remote(), parentID, *item), nil
-			}
-			return nil, fmt.Errorf("%w; postcondition check also failed: %v", err, verifyErr)
-		}
-		return nil, fmt.Errorf("upload data for file ID %d: %w", upload.FileID, err)
-	}
-	item, verifyErr := f.verifyUpload(ctx, parentID, leaf, upload.FileID, prepared.size, prepared.md5)
-	if verifyErr != nil {
-		return nil, verifyErr
-	}
-	return newObject(f, src.Remote(), parentID, *item), nil
+	return f.uploadNew(ctx, in, src, parentID, leaf, src.Remote())
 }
 
 // PutStream accepts unknown-size inputs; prepareSource resolves the true size

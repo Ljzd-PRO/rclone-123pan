@@ -3,7 +3,6 @@ package pan123
 import (
 	"context"
 	"encoding/hex"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -68,11 +67,6 @@ func (o *Object) Hash(_ context.Context, ty hash.Type) (string, error) {
 }
 
 func (o *Object) SetModTime(context.Context, time.Time) error { return fs.ErrorCantSetModTime }
-
-// Update is implemented by the recoverable-update milestone.
-func (o *Object) Update(context.Context, io.Reader, fs.ObjectInfo, ...fs.OpenOption) error {
-	return fs.ErrorNotImplemented
-}
 
 // Remove is implemented by the safe-mutations milestone.
 func (o *Object) Remove(context.Context) error { return fs.ErrorNotImplemented }
