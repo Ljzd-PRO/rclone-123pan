@@ -69,11 +69,6 @@ func (o *Object) Hash(_ context.Context, ty hash.Type) (string, error) {
 
 func (o *Object) SetModTime(context.Context, time.Time) error { return fs.ErrorCantSetModTime }
 
-// Open is implemented by the verified-download milestone.
-func (o *Object) Open(context.Context, ...fs.OpenOption) (io.ReadCloser, error) {
-	return nil, fs.ErrorNotImplemented
-}
-
 // Update is implemented by the recoverable-update milestone.
 func (o *Object) Update(context.Context, io.Reader, fs.ObjectInfo, ...fs.OpenOption) error {
 	return fs.ErrorNotImplemented

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
 	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fshttp"
 	"github.com/rclone/rclone/fs/hash"
 	"github.com/rclone/rclone/lib/dircache"
 	"github.com/rclone/rclone/lib/encoder"
@@ -64,13 +66,14 @@ type Options struct {
 
 // Fs represents a 123Pan personal-account remote.
 type Fs struct {
-	name     string
-	root     string
-	opt      Options
-	client   *apiClient
-	features *fs.Features
-	dirCache *dircache.DirCache
-	uid      int64
+	name           string
+	root           string
+	opt            Options
+	client         *apiClient
+	features       *fs.Features
+	dirCache       *dircache.DirCache
+	uid            int64
+	downloadClient *http.Client
 }
 
 // NewFs constructs and validates a personal-account remote.
@@ -119,7 +122,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, fmt.Errorf("validate 123Pan account: invalid UID %d", user.UID)
 	}
 
-	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID}
+	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx)}
 	f.dirCache = dircache.New(f.root, opt.RootFolderID, f)
 	f.features = (&fs.Features{
 		CaseInsensitive:         false,
