@@ -27,7 +27,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | Strict listing, path resolution, MD5, quota and user info | Implemented and unit tested |
 | Verified download, Range/Seek/suffix, one-time 403 refresh | Implemented and unit tested |
 | Replayable sources, zero-byte preparation and verified rapid upload | Implemented and unit tested |
-| Multipart upload and write operations | In progress |
+| Legacy AWS SDK v2 and bounded presigned multipart uploads | Implemented and unit tested |
+| Recoverable replacement and write operations | In progress |
 | Mock and fault-injection suite | Planned |
 | Dedicated-account live validation | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |

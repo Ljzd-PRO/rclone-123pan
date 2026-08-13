@@ -178,3 +178,18 @@ func TestEndpointGateCancellation(t *testing.T) {
 		t.Fatalf("got %v, want context canceled", err)
 	}
 }
+
+func TestNonIdempotentRequestIsNotBlindlyRetried(t *testing.T) {
+	var calls atomic.Int64
+	client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+		writeEnvelope(t, w, 500, nil)
+	}), "person@example.com", "token")
+	if err := client.doNonIdempotent(context.Background(), http.MethodPost, "/mutation", struct{}{}, nil); err == nil {
+		t.Fatal("expected mutation error")
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("non-idempotent request was called %d times", calls.Load())
+	}
+}

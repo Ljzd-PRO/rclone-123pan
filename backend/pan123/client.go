@@ -127,7 +127,7 @@ func (c *apiClient) login(ctx context.Context, badToken string) error {
 		body["remember"] = true
 	}
 	var data api.LoginData
-	if err := c.call(ctx, c.loginSrv, http.MethodPost, api.SignInPath, body, 200, "", false, &data); err != nil {
+	if err := c.call(ctx, c.loginSrv, http.MethodPost, api.SignInPath, body, 200, "", false, true, &data); err != nil {
 		return err
 	}
 	if data.Token == "" {
@@ -140,7 +140,7 @@ func (c *apiClient) login(ctx context.Context, badToken string) error {
 
 func (c *apiClient) do(ctx context.Context, method, path string, request, response any) error {
 	badToken := c.getToken()
-	err := c.call(ctx, c.apiSrv, method, path, request, 0, badToken, true, response)
+	err := c.call(ctx, c.apiSrv, method, path, request, 0, badToken, true, true, response)
 	var apiErr *APIError
 	if err == nil || !errorsAsAPI(err, &apiErr) || apiErr.Code != 401 {
 		return err
@@ -148,7 +148,23 @@ func (c *apiClient) do(ctx context.Context, method, path string, request, respon
 	if err := c.login(ctx, badToken); err != nil {
 		return err
 	}
-	return c.call(ctx, c.apiSrv, method, path, request, 0, c.getToken(), true, response)
+	return c.call(ctx, c.apiSrv, method, path, request, 0, c.getToken(), true, true, response)
+}
+
+// doNonIdempotent never blindly retries an ambiguous transport or HTTP
+// failure. A 401 is safe to refresh once because authentication failure means
+// the operation was rejected before application.
+func (c *apiClient) doNonIdempotent(ctx context.Context, method, path string, request, response any) error {
+	badToken := c.getToken()
+	err := c.call(ctx, c.apiSrv, method, path, request, 0, badToken, true, false, response)
+	var apiErr *APIError
+	if err == nil || !errorsAsAPI(err, &apiErr) || apiErr.Code != 401 {
+		return err
+	}
+	if err := c.login(ctx, badToken); err != nil {
+		return err
+	}
+	return c.call(ctx, c.apiSrv, method, path, request, 0, c.getToken(), true, false, response)
 }
 
 func errorsAsAPI(err error, target **APIError) bool {
@@ -167,7 +183,7 @@ func errorsAsAPI(err error, target **APIError) bool {
 	return false
 }
 
-func (c *apiClient) call(ctx context.Context, srv *rest.Client, method, path string, request any, wantCode int, token string, signed bool, response any) error {
+func (c *apiClient) call(ctx context.Context, srv *rest.Client, method, path string, request any, wantCode int, token string, signed, allowRetry bool, response any) error {
 	var payload []byte
 	var err error
 	if request != nil {
@@ -177,7 +193,11 @@ func (c *apiClient) call(ctx context.Context, srv *rest.Client, method, path str
 		}
 	}
 	var finalErr error
-	err = c.pacer.Call(func() (bool, error) {
+	call := c.pacer.Call
+	if !allowRetry {
+		call = c.pacer.CallNoRetry
+	}
+	err = call(func() (bool, error) {
 		endpoint := path
 		if query := strings.IndexByte(endpoint, '?'); query >= 0 {
 			endpoint = endpoint[:query]

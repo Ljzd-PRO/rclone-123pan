@@ -3,6 +3,7 @@ package pan123
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -204,7 +205,22 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 		o.remote = src.Remote()
 		return o, nil
 	}
-	return nil, &uploadPostconditionError{FileID: upload.FileID, Reason: "rapid upload missed; data-plane upload is not yet complete"}
+	if err := f.uploadData(ctx, upload, prepared); err != nil {
+		var ambiguous *ambiguousCompleteError
+		if errors.As(err, &ambiguous) {
+			item, verifyErr := f.verifyUpload(ctx, parentID, leaf, upload.FileID, prepared.size, prepared.md5)
+			if verifyErr == nil {
+				return newObject(f, src.Remote(), parentID, *item), nil
+			}
+			return nil, fmt.Errorf("%w; postcondition check also failed: %v", err, verifyErr)
+		}
+		return nil, fmt.Errorf("upload data for file ID %d: %w", upload.FileID, err)
+	}
+	item, verifyErr := f.verifyUpload(ctx, parentID, leaf, upload.FileID, prepared.size, prepared.md5)
+	if verifyErr != nil {
+		return nil, verifyErr
+	}
+	return newObject(f, src.Remote(), parentID, *item), nil
 }
 
 // PutStream accepts unknown-size inputs; prepareSource resolves the true size
