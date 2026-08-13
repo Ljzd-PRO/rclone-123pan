@@ -118,7 +118,9 @@ func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, sou
 		"type":         0,
 	}
 	var upload api.UploadData
-	if err := f.client.do(ctx, http.MethodPost, api.UploadRequestPath, request, &upload); err != nil {
+	// Upload requests allocate a server-side file/upload ID. A transport or
+	// 5xx response is therefore ambiguous and must not be replayed blindly.
+	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.UploadRequestPath, request, &upload); err != nil {
 		return api.UploadData{}, err
 	}
 	if upload.FileID <= 0 {

@@ -237,3 +237,19 @@ func TestKeyedLocksStableOrder(t *testing.T) {
 		t.Fatal("stable-order lock deadlocked")
 	}
 }
+
+func TestAccountLocksSharedAcrossRemotes(t *testing.T) {
+	const uid = int64(902100000001)
+	first := &Fs{uid: uid}
+	second := &Fs{uid: uid}
+	first.ensureLocks()
+	second.ensureLocks()
+	if first.locks != second.locks {
+		t.Fatal("remotes for the same account do not share path locks")
+	}
+	third := &Fs{uid: uid + 1}
+	third.ensureLocks()
+	if first.locks == third.locks {
+		t.Fatal("different accounts unexpectedly share path locks")
+	}
+}

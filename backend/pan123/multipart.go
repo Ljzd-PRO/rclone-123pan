@@ -145,6 +145,7 @@ type uploadPart struct {
 func (f *Fs) putPresignedPart(ctx context.Context, batch *uploadURLBatch, part uploadPart) error {
 	var last error
 	for attempt := 0; attempt < 3; attempt++ {
+		retryDelay := time.Second << attempt
 		rawURL := batch.get(part.number)
 		request, err := http.NewRequestWithContext(ctx, http.MethodPut, rawURL, bytes.NewReader(part.data))
 		if err != nil {
@@ -164,6 +165,9 @@ func (f *Fs) putPresignedPart(ctx context.Context, batch *uploadURLBatch, part u
 			} else {
 				err = fmt.Errorf("upload part %d returned HTTP %d", part.number, response.StatusCode)
 			}
+			if delay := parseRetryAfter(response.Header.Get("Retry-After")); delay > 0 {
+				retryDelay = delay
+			}
 			if response.StatusCode == http.StatusForbidden {
 				if refreshErr := batch.refreshURLs(ctx, part.number, rawURL); refreshErr != nil {
 					return fmt.Errorf("refresh upload URLs for part %d: %w", part.number, refreshErr)
@@ -176,7 +180,7 @@ func (f *Fs) putPresignedPart(ctx context.Context, batch *uploadURLBatch, part u
 		}
 		last = err
 		if attempt < 2 {
-			timer := time.NewTimer(time.Second << attempt)
+			timer := time.NewTimer(retryDelay)
 			select {
 			case <-ctx.Done():
 				timer.Stop()

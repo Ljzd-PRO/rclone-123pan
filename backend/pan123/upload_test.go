@@ -131,6 +131,22 @@ func TestUploadRequestRejectsFalseSuccess(t *testing.T) {
 	}
 }
 
+func TestUploadRequestDoesNotReplayAmbiguousFailure(t *testing.T) {
+	var calls atomic.Int64
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		http.Error(w, "response lost", http.StatusInternalServerError)
+	})
+	f := newListingTestFs(t, handler)
+	_, err := f.requestUpload(context.Background(), 0, "x", &preparedSource{size: 1, md5: "0cc175b9c0f1b6a831c399e269772661"})
+	if err == nil {
+		t.Fatal("accepted an ambiguous upload request failure")
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("upload request was replayed %d times", got)
+	}
+}
+
 func TestRapidUploadRejectsFakeReuse(t *testing.T) {
 	var lists atomic.Int64
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

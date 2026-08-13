@@ -25,7 +25,19 @@ type keyedLocks struct {
 	locks map[string]*lockEntry
 }
 
+// accountLockRegistry makes path locks effective across separately configured
+// remotes which resolve to the same 123Pan account in this process.
+var accountLockRegistry sync.Map
+
 func newKeyedLocks() *keyedLocks { return &keyedLocks{locks: make(map[string]*lockEntry)} }
+
+func locksForUID(uid int64) *keyedLocks {
+	if uid <= 0 {
+		return newKeyedLocks()
+	}
+	locks, _ := accountLockRegistry.LoadOrStore(uid, newKeyedLocks())
+	return locks.(*keyedLocks)
+}
 
 func (k *keyedLocks) lock(keys ...string) func() {
 	keys = append([]string(nil), keys...)

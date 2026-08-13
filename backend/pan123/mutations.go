@@ -16,7 +16,7 @@ import (
 
 func (f *Fs) ensureLocks() {
 	if f.locks == nil {
-		f.locks = newKeyedLocks()
+		f.locks = locksForUID(f.uid)
 	}
 }
 

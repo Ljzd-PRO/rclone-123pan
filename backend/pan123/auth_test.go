@@ -193,3 +193,12 @@ func TestNonIdempotentRequestIsNotBlindlyRetried(t *testing.T) {
 		t.Fatalf("non-idempotent request was called %d times", calls.Load())
 	}
 }
+
+func TestParseRetryAfter(t *testing.T) {
+	if got := parseRetryAfter("17"); got != 17*time.Second {
+		t.Fatalf("seconds Retry-After parsed as %v", got)
+	}
+	if got := parseRetryAfter("invalid"); got != 0 {
+		t.Fatalf("invalid Retry-After parsed as %v", got)
+	}
+}

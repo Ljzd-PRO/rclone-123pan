@@ -125,7 +125,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, fmt.Errorf("validate 123Pan account: invalid UID %d", user.UID)
 	}
 
-	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx), locks: newKeyedLocks(), stageName: randomStageName}
+	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx), locks: locksForUID(user.UID), stageName: randomStageName}
 	f.dirCache = dircache.New(f.root, opt.RootFolderID, f)
 	f.features = (&fs.Features{
 		CaseInsensitive:         false,
@@ -205,7 +205,7 @@ func (f *Fs) PutStream(ctx context.Context, in io.Reader, src fs.ObjectInfo, opt
 
 // Disconnect invalidates the server session and clears the cached token.
 func (f *Fs) Disconnect(ctx context.Context) error {
-	err := f.client.do(ctx, "POST", api.LogoutPath, struct{}{}, nil)
+	err := f.client.doNonIdempotent(ctx, http.MethodPost, api.LogoutPath, struct{}{}, nil)
 	f.client.setToken("")
 	f.client.config.Set("access_token", "")
 	return err
