@@ -47,8 +47,34 @@ make build
 The `noselfupdate` build tag is mandatory. Self-update would otherwise replace
 the custom binary with an official build that does not contain this backend.
 
+## Configure
+
+Use the custom binary's interactive configurator so the password is obscured
+before it is stored:
+
+```console
+./bin/rclone-123 config
+```
+
+Create a new remote, select `123pan`, and enter the personal-account phone
+number or email and password. The default root ID is `0`; production use of a
+custom root should set a verified numeric `root_folder_id`. Typical checks are:
+
+```console
+./bin/rclone-123 lsd my123:
+./bin/rclone-123 md5sum my123:
+./bin/rclone-123 copy ./local-file my123:destination/
+./bin/rclone-123 check ./local-dir my123:destination/
+```
+
+The backend intentionally has no server-side Copy or Purge. rclone core falls
+back to Put (which can still rapid-upload by MD5) and ID-by-ID deletion. It
+does not implement links, shares, public links, modtime writes, ListR, cleanup,
+change notification, or permanent deletion.
+
 See [backend documentation](docs/123pan.md), [security](docs/security.md), and
-[testing](docs/testing.md) for the intended behavior and release gates.
+[testing](docs/testing.md) for the intended behavior and release gates. Failed
+replacement recovery is documented in [recovery](docs/recovery.md).
 
 `make contract` temporarily clones the exact rclone commit, injects this module
 into its `backend/all`, and compiles the upstream operations, sync, VFS, and

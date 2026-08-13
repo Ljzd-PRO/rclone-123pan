@@ -10,3 +10,9 @@ Until a provenance and license review is complete:
   test vectors;
 - treat any direct source adaptation as an AGPL compliance event.
 
+The repository intentionally contains no vendored OpenList files. The helper
+clones both references only into gitignored `.references/` paths and verifies
+their commits. Before any public release, review the full diff for expressive
+similarity, choose and add the repository license, document third-party
+notices/SBOM output, and decide whether any finding requires releasing the
+plugin under AGPL-3.0-compatible terms. Passing tests does not clear this gate.
