@@ -172,3 +172,29 @@ func TestRapidUploadRejectsFakeReuse(t *testing.T) {
 		t.Fatalf("got err=%v lists=%d", err, lists.Load())
 	}
 }
+
+func TestRapidUploadFallsBackWhenReuseHasUploadKeyButIsNotVisible(t *testing.T) {
+	const sum = "5d41402abc4b2a76b9719d911017c592"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/b/api" + api.UploadRequestPath:
+			writeEnvelope(t, w, 0, api.UploadData{FileID: 9, Reuse: true, Key: "upload-key"})
+		case "/b/api" + api.FileListPath:
+			writeEnvelope(t, w, 0, api.FileListData{Next: "-1", Total: 0})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	f := newListingTestFs(t, handler)
+	source := &preparedSource{size: 5, md5: sum}
+	obj, upload, err := f.rapidUpload(context.Background(), 0, "x", source, bytes.NewReader(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if obj != nil {
+		t.Fatal("unexpected rapid-upload object")
+	}
+	if !upload.Reuse || upload.Key != "upload-key" || upload.FileID != 9 {
+		t.Fatalf("unexpected fallback upload data: %#v", upload)
+	}
+}

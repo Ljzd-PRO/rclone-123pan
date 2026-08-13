@@ -178,6 +178,32 @@ func (f *Fs) verifyUpload(ctx context.Context, parentID int64, name string, file
 	}
 }
 
+// inspectUpload performs one complete, consistency-checked listing and reports
+// whether the exact upload result is already visible. A visible ID with
+// mismatched metadata is an identity conflict, not an ordinary "not yet"
+// result, so callers must fail closed instead of uploading over it.
+func (f *Fs) inspectUpload(ctx context.Context, parentID int64, name string, fileID, size int64, sum string) (*api.File, bool, error) {
+	files, err := f.listAll(ctx, parentID)
+	if err != nil {
+		return nil, false, err
+	}
+	serverName := f.opt.Enc.FromStandardName(name)
+	for i := range files {
+		item := &files[i]
+		if item.FileID != fileID {
+			continue
+		}
+		if item.FileName != serverName || item.Size != size || normalizeMD5(item.ETag) != sum || item.IsDir() {
+			return nil, false, &uploadPostconditionError{
+				FileID: fileID,
+				Reason: fmt.Sprintf("metadata mismatch: name=%q size=%d md5=%q type=%d", item.FileName, item.Size, normalizeMD5(item.ETag), item.Type),
+			}
+		}
+		return item, true, nil
+	}
+	return nil, false, nil
+}
+
 func (f *Fs) rapidUpload(ctx context.Context, parentID int64, name string, source *preparedSource, input io.Reader) (*Object, api.UploadData, error) {
 	upload, err := f.requestUpload(ctx, parentID, name, source)
 	if err != nil {
@@ -186,9 +212,25 @@ func (f *Fs) rapidUpload(ctx context.Context, parentID int64, name string, sourc
 	if !upload.Reuse {
 		return nil, upload, nil
 	}
-	item, err := f.verifyUpload(ctx, parentID, name, upload.FileID, source.size, source.md5)
+	item, visible, err := f.inspectUpload(ctx, parentID, name, upload.FileID, source.size, source.md5)
 	if err != nil {
 		return nil, upload, err
+	}
+	// The fixed OpenList reference treats Reuse=true as an unconditional
+	// rapid-upload hit. The live personal API can now return Reuse=true together
+	// with an upload key while the object is not visible. In that response shape
+	// the key is the only verified path to completing the upload, so continue
+	// with data transfer. Reuse without a key still has no upload path and must
+	// wait for the exact object postcondition.
+	if !visible && upload.Key != "" {
+		fs.Infof(f, "123Pan reuse candidate ID %d is not visible; using the supplied upload key", upload.FileID)
+		return nil, upload, nil
+	}
+	if !visible {
+		item, err = f.verifyUpload(ctx, parentID, name, upload.FileID, source.size, source.md5)
+		if err != nil {
+			return nil, upload, err
+		}
 	}
 	if _, acc := accounting.UnWrapAccounting(input); acc != nil {
 		acc.ServerSideTransferStart()
