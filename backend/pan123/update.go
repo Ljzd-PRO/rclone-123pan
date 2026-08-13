@@ -184,40 +184,74 @@ func (o *Object) refreshExact(ctx context.Context) (*api.File, error) {
 }
 
 func (o *Object) rollbackUpdate(ctx context.Context, stage *Object, stageName string, backup *api.File, backupName, targetName string) error {
-	var rollback []error
-	if current, found, err := o.fs.fileByID(ctx, o.parentID, stage.id); err != nil {
-		rollback = append(rollback, err)
-	} else if found {
-		if current.FileName == o.fs.opt.Enc.FromStandardName(targetName) {
-			if err := o.fs.renameByID(ctx, o.parentID, stage.id, targetName, stageName); err != nil {
-				rollback = append(rollback, err)
-			}
-		}
-	}
+	// Establish that the old object still exists under one of the two exact
+	// transaction names before moving the verified replacement out of the
+	// target path. In particular, an ambiguous backup-trash response must never
+	// turn a valid new target into an empty path.
+	backupID := o.id
 	if backup != nil {
-		if current, found, err := o.fs.fileByID(ctx, o.parentID, backup.FileID); err != nil {
-			rollback = append(rollback, err)
-		} else if found && current.FileName == o.fs.opt.Enc.FromStandardName(backupName) {
-			if err := o.fs.renameByID(ctx, o.parentID, backup.FileID, backupName, targetName); err != nil {
-				rollback = append(rollback, err)
+		backupID = backup.FileID
+	}
+	old, found, err := o.fs.fileByID(ctx, o.parentID, backupID)
+	if err != nil {
+		return fmt.Errorf("cannot establish rollback source ID %d; replacement kept in place: %w", backupID, err)
+	}
+	if !found {
+		return fmt.Errorf("rollback source ID %d is absent; replacement kept in place", backupID)
+	}
+	targetServerName := o.fs.opt.Enc.FromStandardName(targetName)
+	backupServerName := o.fs.opt.Enc.FromStandardName(backupName)
+	switch old.FileName {
+	case targetServerName:
+		// The old object is already restored. The staging object can only be
+		// removed after this identity check.
+	case backupServerName:
+		currentStage, stageFound, stageErr := o.fs.fileByID(ctx, o.parentID, stage.id)
+		if stageErr != nil {
+			return fmt.Errorf("inspect replacement ID %d before rollback: %w", stage.id, stageErr)
+		}
+		if stageFound {
+			switch currentStage.FileName {
+			case targetServerName:
+				if err := o.fs.renameByID(ctx, o.parentID, stage.id, targetName, stageName); err != nil {
+					return fmt.Errorf("move replacement ID %d aside during rollback: %w", stage.id, err)
+				}
+			case o.fs.opt.Enc.FromStandardName(stageName):
+				// Already staged; continue with restoring the old object.
+			default:
+				return fmt.Errorf("replacement ID %d has unexpected name %q; refusing rollback", stage.id, currentStage.FileName)
 			}
 		}
-	}
-	if current, found, err := o.fs.fileByID(ctx, o.parentID, stage.id); err != nil {
-		rollback = append(rollback, err)
-	} else if found && current.FileName == o.fs.opt.Enc.FromStandardName(stageName) {
-		if err := o.fs.trashExact(ctx, o.parentID, *current); err != nil {
-			rollback = append(rollback, err)
+		if err := o.fs.renameByID(ctx, o.parentID, backupID, backupName, targetName); err != nil {
+			return fmt.Errorf("restore rollback source ID %d: %w", backupID, err)
 		}
+	default:
+		return fmt.Errorf("rollback source ID %d has unexpected name %q; replacement kept in place", backupID, old.FileName)
 	}
-	return errors.Join(rollback...)
+
+	restored, restoredFound, err := o.fs.fileByID(ctx, o.parentID, backupID)
+	if err != nil {
+		return fmt.Errorf("verify restored target ID %d: %w", backupID, err)
+	}
+	if !restoredFound || restored.FileName != targetServerName {
+		return fmt.Errorf("rollback source ID %d was not restored to target; replacement retained for recovery", backupID)
+	}
+	currentStage, stageFound, err := o.fs.fileByID(ctx, o.parentID, stage.id)
+	if err != nil {
+		return fmt.Errorf("inspect staging ID %d after target restore: %w", stage.id, err)
+	}
+	if !stageFound {
+		return nil
+	}
+	if currentStage.FileName != o.fs.opt.Enc.FromStandardName(stageName) {
+		return fmt.Errorf("staging ID %d has unexpected name %q after target restore", stage.id, currentStage.FileName)
+	}
+	return o.fs.trashExact(ctx, o.parentID, *currentStage)
 }
 
 // Update replaces an object through a recoverable staging/backup transaction.
 func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, _ ...fs.OpenOption) error {
-	if o.fs.locks == nil {
-		o.fs.locks = newKeyedLocks()
-	}
+	o.fs.ensureLocks()
 	unlock := o.fs.locks.lock("path:" + o.remote)
 	defer unlock()
 	old, err := o.refreshExact(ctx)

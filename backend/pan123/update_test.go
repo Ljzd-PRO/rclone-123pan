@@ -216,6 +216,23 @@ func TestRecoverableUpdateRollsBackBeforeApplyFailures(t *testing.T) {
 	}
 }
 
+func TestRollbackKeepsReplacementWhenBackupIsMissing(t *testing.T) {
+	store := newUpdateStore(t, nil)
+	store.files = map[int64]api.File{
+		2: {FileName: "target", FileID: 2, Size: 3, ETag: "22af645d1859cb5ca6da0c484f1f37ea"},
+	}
+	o := updateTestObject(t, store)
+	stage := newObject(o.fs, "target", 0, store.files[2])
+	err := o.rollbackUpdate(context.Background(), stage, "rclone-123pan-stage-fixed", &api.File{FileID: 1}, "rclone-123pan-backup-fixed", "target")
+	if err == nil {
+		t.Fatal("rollback succeeded without a recoverable backup")
+	}
+	files := store.snapshot()
+	if len(files) != 1 || files[2].FileName != "target" {
+		t.Fatalf("verified replacement was disturbed: %#v", files)
+	}
+}
+
 func TestKeyedLocksStableOrder(t *testing.T) {
 	locks := newKeyedLocks()
 	first := locks.lock("b", "a")
