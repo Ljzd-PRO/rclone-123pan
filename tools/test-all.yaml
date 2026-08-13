@@ -1,0 +1,9 @@
+tests:
+  - path: fs/operations
+  - path: fs/sync
+  - path: vfs
+  - path: cmd/bisync
+backends:
+  - backend: "123pan"
+    remote: "Test123Pan:"
+    fastlist: false

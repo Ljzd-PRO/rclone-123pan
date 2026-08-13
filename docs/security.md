@@ -19,3 +19,8 @@ is replayed at most once, so a second 401 cannot form a login loop.
 
 Deletion means moving a verified object ID to the recycle bin. Permanent
 deletion and recycle-bin cleanup are out of scope.
+
+Production binaries have no API endpoint option and compile fixed
+`login.123pan.com` and `yun.123pan.com/b/api` roots. Socket-free and cross-repo
+mock tests may opt into endpoint environment variables only through the
+explicit `pan123test` build tag. Release builds must never include that tag.

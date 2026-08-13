@@ -18,11 +18,9 @@ import (
 )
 
 const (
-	productionLoginRoot = "https://login.123pan.com"
-	productionAPIRoot   = "https://yun.123pan.com/b/api"
-	webOrigin           = "https://yun.123pan.com"
-	protocolPlatform    = "web"
-	protocolVersion     = "3"
+	webOrigin        = "https://yun.123pan.com"
+	protocolPlatform = "web"
+	protocolVersion  = "3"
 )
 
 var digitTable = [...]byte{'a', 'd', 'e', 'f', 'g', 'h', 'l', 'm', 'y', 'i', 'j', 'n', 'o', 'p', 'k', 'q', 'r', 's', 't', 'u', 'b', 'c', 'v', 'w', 's', 'z'}

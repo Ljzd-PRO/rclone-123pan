@@ -13,3 +13,9 @@ to that embedded filesystem, so this pinned version emits a harmless
 and operation are unaffected. Removing this diagnostic without a full fork
 requires an upstream rclone change; it is tracked as a compatibility issue and
 must not be hidden by replacing or patching the pinned rclone dependency.
+
+The contract runner does not modify the checked-in dependency or maintain an
+rclone fork. It creates a disposable exact checkout, adds one blank import and
+a local `go.mod replace`, then deletes the checkout. This is also why upstream
+operations/sync/VFS/bisync tests cannot simply be run from the out-of-tree
+module without injection.

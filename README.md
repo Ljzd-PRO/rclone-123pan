@@ -31,8 +31,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | Recoverable staging/backup object replacement | Implemented with fault tests |
 | Safe mkdir/remove/rmdir and ID-verified Move/DirMove | Implemented and unit tested |
 | Offline add/status/delete backend commands | Implemented and unit tested |
-| Cross-rclone contract and extended fault gates | In progress |
-| Dedicated-account live validation | Blocked: no account supplied |
+| Fault transport, guarded fstests, fixed-rclone contract injection | Implemented |
+| Dedicated-account live contract run | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |
 
 ## Build
@@ -49,3 +49,8 @@ the custom binary with an official build that does not contain this backend.
 
 See [backend documentation](docs/123pan.md), [security](docs/security.md), and
 [testing](docs/testing.md) for the intended behavior and release gates.
+
+`make contract` temporarily clones the exact rclone commit, injects this module
+into its `backend/all`, and compiles the upstream operations, sync, VFS, and
+bisync test packages. It runs destructive `test_all` only when all documented
+live-test guard variables are deliberately supplied.
