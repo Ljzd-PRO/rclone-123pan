@@ -26,7 +26,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | Password login, cached token, coordinated 401 refresh, logout | Implemented and unit tested |
 | Strict listing, path resolution, MD5, quota and user info | Implemented and unit tested |
 | Verified download, Range/Seek/suffix, one-time 403 refresh | Implemented and unit tested |
-| Upload and write operations | In progress |
+| Replayable sources, zero-byte preparation and verified rapid upload | Implemented and unit tested |
+| Multipart upload and write operations | In progress |
 | Mock and fault-injection suite | Planned |
 | Dedicated-account live validation | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |

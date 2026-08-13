@@ -1,0 +1,194 @@
+package pan123
+
+import (
+	"bytes"
+	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/ljzd/rclone-123pan/backend/pan123/api"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/hash"
+)
+
+type preparedSource struct {
+	reader  io.Reader
+	size    int64
+	md5     string
+	cleanup func() error
+}
+
+func prepareSource(ctx context.Context, in io.Reader, src fs.ObjectInfo, memoryLimit int64) (*preparedSource, error) {
+	if memoryLimit < 0 {
+		return nil, errorsNewConfig("hash_memory_limit must not be negative")
+	}
+	size := src.Size()
+	sum, hashErr := src.Hash(ctx, hash.MD5)
+	sum = normalizeMD5(sum)
+	if hashErr == nil && sum != "" && size >= 0 {
+		return &preparedSource{reader: in, size: size, md5: sum, cleanup: func() error { return nil }}, nil
+	}
+	if hashErr != nil && !errors.Is(hashErr, hash.ErrUnsupported) {
+		return nil, fmt.Errorf("read source MD5: %w", hashErr)
+	}
+
+	unwrapped, wrap := accounting.UnWrap(in)
+	if size >= 0 && size <= memoryLimit {
+		buffer := make([]byte, size)
+		n, err := io.ReadFull(unwrapped, buffer)
+		if err != nil {
+			return nil, fmt.Errorf("cache source for MD5: %w", err)
+		}
+		var extra [1]byte
+		if extraN, extraErr := unwrapped.Read(extra[:]); extraN != 0 || (extraErr != nil && extraErr != io.EOF) {
+			return nil, fmt.Errorf("source size changed: declared %d bytes but more data followed", size)
+		}
+		if int64(n) != size {
+			return nil, fmt.Errorf("source size changed: declared %d bytes, read %d", size, n)
+		}
+		digest := md5.Sum(buffer)
+		return &preparedSource{
+			reader:  wrap(bytes.NewReader(buffer)),
+			size:    size,
+			md5:     hex.EncodeToString(digest[:]),
+			cleanup: func() error { return nil },
+		}, nil
+	}
+
+	temp, err := os.CreateTemp("", "rclone-123pan-hash-*")
+	if err != nil {
+		return nil, fmt.Errorf("create hash spool in temp directory: %w", err)
+	}
+	tempName := temp.Name()
+	cleanup := func() error {
+		closeErr := temp.Close()
+		removeErr := os.Remove(tempName)
+		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			return removeErr
+		}
+		return closeErr
+	}
+	hasher := md5.New()
+	written, err := io.Copy(io.MultiWriter(temp, hasher), unwrapped)
+	if err != nil {
+		_ = cleanup()
+		return nil, fmt.Errorf("spool source for MD5: %w", err)
+	}
+	if size >= 0 && written != size {
+		_ = cleanup()
+		return nil, fmt.Errorf("source size changed: declared %d bytes, read %d", size, written)
+	}
+	if _, err := temp.Seek(0, io.SeekStart); err != nil {
+		_ = cleanup()
+		return nil, fmt.Errorf("rewind hash spool: %w", err)
+	}
+	return &preparedSource{
+		reader:  wrap(temp),
+		size:    written,
+		md5:     hex.EncodeToString(hasher.Sum(nil)),
+		cleanup: cleanup,
+	}, nil
+}
+
+type uploadPostconditionError struct {
+	FileID int64
+	Reason string
+}
+
+func (e *uploadPostconditionError) Error() string {
+	return fmt.Sprintf("123Pan upload postcondition failed for file ID %d: %s", e.FileID, e.Reason)
+}
+
+func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, source *preparedSource) (api.UploadData, error) {
+	request := map[string]any{
+		"driveId":      0,
+		"duplicate":    1,
+		"etag":         source.md5,
+		"fileName":     f.opt.Enc.FromStandardName(name),
+		"parentFileId": parentID,
+		"size":         source.size,
+		"type":         0,
+	}
+	var upload api.UploadData
+	if err := f.client.do(ctx, http.MethodPost, api.UploadRequestPath, request, &upload); err != nil {
+		return api.UploadData{}, err
+	}
+	if upload.FileID <= 0 {
+		return api.UploadData{}, errorsNewProtocol("upload request returned an invalid file ID")
+	}
+	if !upload.Reuse && upload.Key == "" {
+		return api.UploadData{}, errorsNewProtocol("upload request returned neither reuse nor an upload key")
+	}
+	return upload, nil
+}
+
+func (f *Fs) verifyUpload(ctx context.Context, parentID int64, name string, fileID, size int64, sum string) (*api.File, error) {
+	deadline := time.Now().Add(time.Duration(f.opt.VerifyTimeout))
+	serverName := f.opt.Enc.FromStandardName(name)
+	var last string
+	for {
+		files, err := f.listAll(ctx, parentID)
+		if err == nil {
+			for i := range files {
+				item := &files[i]
+				if item.FileID != fileID {
+					continue
+				}
+				if item.FileName == serverName && item.Size == size && normalizeMD5(item.ETag) == sum && !item.IsDir() {
+					return item, nil
+				}
+				last = fmt.Sprintf("metadata mismatch: name=%q size=%d md5=%q type=%d", item.FileName, item.Size, normalizeMD5(item.ETag), item.Type)
+			}
+			if last == "" {
+				last = "file ID is not visible"
+			}
+		} else {
+			last = err.Error()
+		}
+		if time.Now().After(deadline) {
+			return nil, &uploadPostconditionError{FileID: fileID, Reason: scrubSecrets(last)}
+		}
+		timer := time.NewTimer(250 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (f *Fs) rapidUpload(ctx context.Context, parentID int64, name string, source *preparedSource, input io.Reader) (*Object, api.UploadData, error) {
+	upload, err := f.requestUpload(ctx, parentID, name, source)
+	if err != nil {
+		return nil, api.UploadData{}, err
+	}
+	if !upload.Reuse {
+		return nil, upload, nil
+	}
+	item, err := f.verifyUpload(ctx, parentID, name, upload.FileID, source.size, source.md5)
+	if err != nil {
+		return nil, upload, err
+	}
+	if _, acc := accounting.UnWrapAccounting(input); acc != nil {
+		acc.ServerSideTransferStart()
+		acc.ServerSideTransferEnd(source.size)
+	}
+	return newObject(f, name, parentID, *item), upload, nil
+}
+
+func tempSpoolName(source *preparedSource) string {
+	file, ok := source.reader.(*os.File)
+	if !ok {
+		return ""
+	}
+	return filepath.Base(file.Name())
+}

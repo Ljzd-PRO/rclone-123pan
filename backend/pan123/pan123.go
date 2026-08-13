@@ -169,9 +169,48 @@ func (f *Fs) Hashes() hash.Set { return hash.Set(hash.MD5) }
 // Features returns optional rclone capabilities.
 func (f *Fs) Features() *fs.Features { return f.features }
 
-// Put is implemented by the upload milestone.
-func (f *Fs) Put(context.Context, io.Reader, fs.ObjectInfo, ...fs.OpenOption) (fs.Object, error) {
-	return nil, fs.ErrorNotImplemented
+// Put creates a new object. Existing-object replacement is delegated to the
+// recoverable Update state machine.
+func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	leaf, parent, err := f.dirCache.FindPath(ctx, src.Remote(), false)
+	if err != nil {
+		return nil, err
+	}
+	parentID, err := parseID(parent, true)
+	if err != nil {
+		return nil, err
+	}
+	existing, found, err := f.findChild(ctx, parentID, leaf)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		if existing.IsDir() {
+			return nil, fs.ErrorIsDir
+		}
+		o := newObject(f, src.Remote(), parentID, *existing)
+		return o, o.Update(ctx, in, src, options...)
+	}
+	prepared, err := prepareSource(ctx, in, src, int64(f.opt.HashMemoryLimit))
+	if err != nil {
+		return nil, err
+	}
+	defer prepared.cleanup()
+	o, upload, err := f.rapidUpload(ctx, parentID, leaf, prepared, in)
+	if err != nil {
+		return nil, err
+	}
+	if o != nil {
+		o.remote = src.Remote()
+		return o, nil
+	}
+	return nil, &uploadPostconditionError{FileID: upload.FileID, Reason: "rapid upload missed; data-plane upload is not yet complete"}
+}
+
+// PutStream accepts unknown-size inputs; prepareSource resolves the true size
+// before any upload request is sent.
+func (f *Fs) PutStream(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	return f.Put(ctx, in, src, options...)
 }
 
 // Mkdir is implemented by the mutations milestone.
@@ -193,4 +232,5 @@ var _ fs.Disconnecter = (*Fs)(nil)
 var _ fs.Abouter = (*Fs)(nil)
 var _ fs.UserInfoer = (*Fs)(nil)
 var _ fs.DirCacheFlusher = (*Fs)(nil)
+var _ fs.PutStreamer = (*Fs)(nil)
 var _ dircache.DirCacher = (*Fs)(nil)
