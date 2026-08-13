@@ -1,17 +1,7 @@
-# Provenance
+# 来源说明
 
-The implementation is written against rclone's public backend interfaces.
-OpenList v4.2.5 is used to identify observable protocol facts such as endpoint
-paths, JSON field names, header requirements, pagination, and upload flows.
+本实现基于 rclone 公开的后端接口编写。OpenList v4.2.5 仅用于识别可观察的协议事实，例如端点路径、JSON 字段名、请求头要求、分页方式和上传流程。
 
-Do not copy OpenList function bodies, comments, tests, or other expressive
-source. Record any future reference revision in `SOURCE_PINS.md` and review its
-license before using it.
+禁止复制 OpenList 的函数体、注释、测试或其他具有表达性的源码。未来如需使用新的参考版本，必须先在 `SOURCE_PINS.md` 中记录，并在使用前审查其许可证。
 
-Protocol facts independently reimplemented from the fixed OpenList reference
-include endpoint paths, envelope success codes, JSON field spellings, the
-UTC+8 CRC32 URL signature, page size/order, download redirect shapes, MD5 rapid
-upload, temporary-credential versus presigned upload selection, 16 MiB parts,
-ten-URL batches, and offline status values. Safety state machines, strict
-consistency rules, retry policy, rclone interfaces, tests, documentation, and
-all source expression in this repository were authored independently.
+从固定 OpenList 版本中识别并独立重新实现的协议事实包括：端点路径、响应 envelope 成功码、JSON 字段拼写、UTC+8 CRC32 URL 签名、分页大小与排序、下载重定向结构、MD5 秒传、临时凭据与预签名上传的选择逻辑、16 MiB 分片、每批十个 URL，以及离线任务状态值。本仓库中的安全状态机、严格一致性规则、重试策略、rclone 接口、测试、文档和全部源码表达均为独立编写。

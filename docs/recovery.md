@@ -1,54 +1,35 @@
-# Recovery and rollback
+# 恢复与回滚
 
-Every destructive operation identifies objects by positive server ID and then
-rechecks parent, name, and type from a complete listing. Do not recover by
-globally deleting names beginning with `rclone-123pan-`; another process or an
-older run may own them.
+每个破坏性操作都使用正数服务端 ID 标识对象，并通过一次完整列表重新核对父目录、名称和类型。恢复时不得全局删除以 `rclone-123pan-` 开头的名称；这些对象可能属于另一个进程或更早的一次运行。
 
-## Interrupted replacement
+## 被中断的对象替换
 
-An Update creates names shaped like:
+一次 `Update` 会创建以下格式的名称：
 
 ```text
 rclone-123pan-stage-<128-bit hex ID>
 rclone-123pan-backup-<128-bit hex ID>
 ```
 
-The intended states are:
+预期状态依次为：
 
-1. target ID is the old file; staging ID contains the verified replacement;
-2. old ID has the backup name; staging ID still has its staging name;
-3. old ID has the backup name; staging ID has the target name;
-4. staging ID is the verified target; the old ID is in the recycle bin.
+1. 目标 ID 是旧文件；staging ID 中保存已经验证的新文件；
+2. 旧 ID 已改为 backup 名称；staging ID 仍使用 staging 名称；
+3. 旧 ID 使用 backup 名称；staging ID 已使用目标名称；
+4. staging ID 是经过验证的最终目标；旧 ID 已进入回收站。
 
-On an error, the backend reverses only operations whose exact IDs it recorded.
-If reversal cannot be proved, `RecoveryError` prints the staging and backup
-IDs. Stop automated retries, list the parent without filters, and record each
-ID/name/size/MD5. Prefer restoring the known backup ID to the target name; do
-not trash either candidate until a full download verifies the desired content.
-In particular, when backup deletion is ambiguous and that backup ID is no
-longer visible, the backend keeps the already verified replacement at the
-target name instead of risking an empty target during rollback.
+发生错误时，后端只会反向执行自己已经记录精确 ID 的操作。如果无法证明反向操作已完成，`RecoveryError` 会输出 staging ID 和 backup ID。此时应停止自动重试，不加筛选地列出父目录，并记录每个对象的 ID、名称、大小和 MD5。优先把已知 backup ID 恢复成目标名称；在完整下载并核验所需内容前，不要把任一候选对象移入回收站。
 
-## Ambiguous completion
+特别是当 backup 删除结果不明确、且该 backup ID 已不可见时，后端会让已经验证的新文件继续占据目标名称，避免在回滚过程中把目标路径变为空。
 
-Upload complete is never blindly replayed after a lost response. The backend
-polls for the returned file ID and exact name/parent/size/MD5. If it reports an
-ambiguous completion, keep the ID from the error and inspect it after the API
-stabilizes. A missing visible object is not proof that no temporary S3 parts
-exist, and this backend does not guess an abort endpoint.
+## 完成状态不明确
 
-## Recycle bin
+上传完成请求的响应丢失后，后端绝不会盲目重放。它会轮询返回的文件 ID，并严格核对名称、父目录、大小和 MD5。如果报告完成状态不明确，请保留错误中的 ID，待 API 状态稳定后再检查。对象当前不可见，并不能证明临时 S3 分片不存在；本后端也不会猜测未经验证的 abort endpoint。
 
-Remove, Rmdir, replacement cleanup, and core Purge move objects into 123Pan's
-recycle bin. This project has no permanent-delete or empty-trash command.
-Recovery from the recycle bin must use an official 123Pan client until a
-documented and independently tested restore API is implemented.
+## 回收站
 
-## Upgrade and rollback
+`Remove`、`Rmdir`、替换清理和 rclone core 的 `Purge` 都会把对象移入 123 网盘回收站。本项目不提供永久删除或清空回收站命令。在实现并独立测试有文档依据的恢复 API 之前，只能使用 123 网盘官方客户端从回收站恢复。
 
-The plugin and rclone pin form one release unit. Before upgrading, keep the old
-`rclone-123` binary, config, SHA-256 checksum, SBOM, and provenance. Run read-only
-list/MD5/download checks first, then a disposable write directory. To roll back,
-restore the previous custom binary; never run `rclone selfupdate`, which would
-replace it with a binary that has no `123pan` backend.
+## 升级与回退
+
+插件和固定的 rclone 版本共同构成一个发布单元。升级前，应保留旧版 `rclone-123` 二进制、配置、SHA-256 校验值、SBOM 和来源记录。先运行只读的列表、MD5 和下载检查，再在可丢弃的写入目录中测试。需要回退时，恢复上一个定制二进制；绝不能运行 `rclone selfupdate`，否则它会被不含 `123pan` 后端的二进制替换。

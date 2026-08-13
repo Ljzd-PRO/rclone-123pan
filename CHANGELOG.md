@@ -1,13 +1,8 @@
-# Changelog
+# 变更日志
 
-## Unreleased
+## 尚未发布
 
-- Scaffold an out-of-tree rclone v1.75.0 distribution with a registered
-  experimental `123pan` backend.
-- Add strict signed protocol handling, coordinated authentication, consistent
-  ID-backed listings, MD5, verified downloads, rapid upload, AWS SDK v2 and
-  bounded presigned uploads.
-- Add recoverable object replacement, recycle-bin mutations, server-side
-  Move/DirMove, quota/user information, and offline task commands.
-- Add socket-free fault injection, race tests, guarded fstests, exact-rclone
-  contract injection, five-target CI, and operational/security/recovery docs.
+- 搭建基于 rclone v1.75.0 的树外发行结构，并注册实验性的 `123pan` 后端。
+- 增加严格的签名协议处理、协同认证、由 ID 支撑的一致性列表、MD5、经过验证的下载、秒传、AWS SDK v2 上传和有界预签名上传。
+- 增加可恢复的对象替换、回收站写操作、服务端 `Move`/`DirMove`、配额与用户信息，以及离线任务命令。
+- 增加无套接字故障注入、竞态测试、受门禁保护的 fstests、固定 rclone 版本的契约注入、五目标 CI，以及运维、安全和恢复文档。

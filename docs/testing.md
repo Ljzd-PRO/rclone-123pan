@@ -1,65 +1,29 @@
-# Testing and release gates
+# 测试与发布门禁
 
-Pull requests run unit/race tests and build the five primary targets without a
-real 123Pan account.
+每次 PR 都会在不使用真实 123 网盘账号的情况下运行单元测试、竞态测试，并构建五个主要目标平台。
 
-The mock suite covers the 0/1/16 MiB boundaries, 10/11-part batching, the
-10,000-part ceiling, zero-length PUT, retained-byte retry, 403 URL refresh,
-short/changed sources, completion suppression, and both presigned and AWS SDK
-v2 upload modes. Large boundary plans are tested without allocating their full
-payload; streaming tests prove data order and content at representative
-boundaries.
+mock 测试覆盖 0/1/16 MiB 边界、10/11 分片批次、10,000 分片上限、零字节 PUT、保留原分片字节后的重试、403 URL 刷新、输入源短读或变化、禁止错误调用 complete，以及预签名上传和 AWS SDK v2 上传两种模式。超大边界只验证规划逻辑，不会分配完整 payload；流式测试则在有代表性的边界上验证数据顺序和内容。
 
-The Update state machine is exercised with faults before application and after
-application with a lost response at both rename steps and backup trash. Tests
-assert either the fully verified replacement or the exact original object is
-the sole visible target; an incomplete rollback must return explicit recovery
-IDs rather than performing name-pattern cleanup.
+`Update` 状态机会在两个 rename 步骤和 backup 移入回收站步骤中，分别注入操作应用前故障，以及操作已经应用但响应丢失的故障。测试断言最终唯一可见的目标要么是经过完整验证的新文件，要么是精确的原文件；回滚不完整时必须返回明确的恢复 ID，不得按名称模式清理。
 
-Mutation tests cover lost mkdir responses, two-pass empty Rmdir, root and
-non-empty guards, stale object snapshots, idempotent Remove, combined
-move+rename, directory subtree rejection, and dircache invalidation. All mock
-deletions require the exact ID and current server name.
-They also exercise concurrent same-name creation across two remote instances,
-shared UID lock coordination, stale parent-ID rejection, and the rule that a
-verified replacement is not disturbed when its old backup can no longer be
-proved recoverable.
+写操作测试覆盖 mkdir 响应丢失、两次空列表确认的 `Rmdir`、根目录和非空目录保护、过期对象快照、幂等 `Remove`、组合 move+rename、目录子树保护和 dircache 失效。所有 mock 删除都要求精确匹配当前服务端 ID 和名称。
 
-Offline command tests cover resolve/submit, destination root ID, stable JSON,
-all documented status mappings, unknown states, positive/unique ID validation,
-pagination consistency, and delete-then-query confirmation.
+测试还覆盖两个 remote 实例并发创建同名对象、共享 UID 锁协调、过期父目录 ID 拒绝，以及当旧 backup 已无法证明可恢复时不干扰已验证新文件的规则。
 
-`internal/testserver` supplies a socket-free transport that records method,
-path, body length, and MD5, and injects failures before state application,
-after application with a lost response, or while blocked until context
-cancellation. Individual backend tests layer an ID file tree and task model on
-that transport.
+离线命令测试覆盖解析与提交、目标根 ID、稳定 JSON、全部已知状态映射、未知状态、正数且唯一的 ID 校验、分页一致性，以及删除后的再次查询确认。
 
-`backend/pan123/fstests_test.go` calls `fstests.Run` with `Test123Pan:` but is
-hard-skipped unless `RCLONE_123_RUN_LIVE=1`, a non-zero
-`RCLONE_123_LIVE_ROOT_ID`, and immutable external
-`RCLONE_123_LIVE_SENTINELS` are all present. `tools/test-rclone-contract.sh`
-clones commit `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`, adds a test-only blank import
-to `backend/all`, and uses a local module replace. Account-free CI compiles the
-fixed upstream `fs/operations`, `fs/sync`, `vfs`, and `cmd/bisync` packages;
-with the same live guards it runs those suites via the checked-in custom
-`test_all` YAML. No ignore list is configured.
+`internal/testserver` 提供无套接字 transport，记录方法、路径、正文长度和 MD5，并可在状态应用前、状态已经应用但响应丢失后，或阻塞等待 context 取消时注入故障。各后端测试在此基础上构建 ID 文件树和任务模型。
 
-Before any live run, operators must also verify two immutable sentinels outside
-the test root, create only a fresh `rclone-test-[a-z0-9]{12}` directory, record
-every created ID, and clean only those IDs. A stable release additionally
-requires the planned 205-file/three-page, zero-byte, 16 MiB+1, rapid upload,
-move/rename/delete, full-download MD5, mount smoke, and seven-day canary gates.
+`backend/pan123/fstests_test.go` 会用 `Test123Pan:` 调用 `fstests.Run`，但除非同时满足以下条件，否则会强制跳过：
 
-The manually triggered internal-alpha workflow uses `tools/build-alpha.sh` to
-cross-build all five supported targets with Go 1.25.0, `CGO_ENABLED=0`,
-`-trimpath`, `-buildvcs=false`, and mandatory `noselfupdate`. It normalizes
-archive ownership and timestamps to the source commit, strips gzip/zip
-metadata, emits one deterministic CycloneDX 1.6 module SBOM and provenance
-record, and verifies `SHA256SUMS`. Artifacts remain private and expire after
-seven days; the workflow has no release or package-write permission.
+- `RCLONE_123_RUN_LIVE=1`；
+- `RCLONE_123_LIVE_ROOT_ID` 是非零固定测试根 ID；
+- 已提供不可变的根目录外部 `RCLONE_123_LIVE_SENTINELS`。
 
-Stable release is blocked until a dedicated empty test account and isolated
-non-zero root are available. Live tests must preserve external sentinel files,
-operate only in randomly named `rclone-test-[a-z0-9]{12}` directories, and
-clean up only IDs recorded by the current run.
+`tools/test-rclone-contract.sh` 会克隆 commit `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`，向 `backend/all` 添加仅测试使用的 blank import，并使用本地 module replace。无需账号的 CI 会编译固定上游的 `fs/operations`、`fs/sync`、`vfs` 和 `cmd/bisync` 包；提供同样的真实测试门禁后，则会通过仓库中的定制 `test_all` YAML 运行这些测试套件。没有配置任何 ignore 列表。
+
+任何真实测试开始前，操作人员还必须核验测试根外的两个不可变 sentinel，只创建一个全新的 `rclone-test-[a-z0-9]{12}` 目录，记录所有新建 ID，并且只清理本轮记录的 ID。稳定版还必须通过计划中的 205 文件跨三页、零字节、16 MiB+1、秒传、move/rename/delete、完整下载 MD5、mount smoke 和连续七日 canary 门禁。
+
+手动触发的内部 alpha 工作流通过 `tools/build-alpha.sh`，使用 Go 1.25.0、`CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false` 和强制 `noselfupdate` 交叉编译五个支持目标。脚本会把归档文件的所有者和时间戳统一为源码 commit，移除 gzip/zip 元数据，生成确定性的 CycloneDX 1.6 module SBOM 与来源记录，并校验 `SHA256SUMS`。artifact 保持私有且七天后过期；工作流没有 release 或 package 写权限。
+
+在获得专用空测试账号和隔离的非零根目录前，稳定版发布保持阻断。真实测试必须保留外部 sentinel，只在随机命名的 `rclone-test-[a-z0-9]{12}` 目录中操作，并且只清理由本轮记录的 ID。

@@ -1,26 +1,13 @@
-# Security
+# 安全说明
 
-The 123Pan personal backend uses a reverse-engineered web API. Credentials must
-only be sent to `login.123pan.com`; authenticated control requests must only be
-sent to `yun.123pan.com`. Download requests must never forward API
-authorization headers to storage hosts.
+123 网盘个人盘后端使用逆向分析所得的 Web API。凭据只能发送至 `login.123pan.com`；经过认证的控制请求只能发送至 `yun.123pan.com`。下载请求绝不能把 API Authorization 请求头转发给存储主机。
 
-Passwords, tokens, signed URLs, authorization headers, cookies, and pre-signed
-query parameters must be redacted from errors, logs, and CI artifacts.
+密码、token、签名 URL、Authorization 请求头、Cookie 和预签名查询参数必须从错误、日志和 CI artifact 中移除或脱敏。
 
-The password uses rclone's obscured-password storage and is revealed only when
-constructing the authenticated client. Tokens are sensitive and hidden from
-the configurator and CLI; they are persisted only after successful login and
-cleared on disconnect.
+密码使用 rclone 的 obscure 形式存储，只在构建认证客户端时还原。token 属于敏感信息，在配置器和 CLI 中均隐藏；只有登录成功后才会持久化，并在断开连接时清除。
 
-Concurrent 401 responses coordinate on the exact rejected token. One caller
-refreshes while the others replay using the new value. Every logical request
-is replayed at most once, so a second 401 cannot form a login loop.
+并发收到 401 响应时，以被拒绝的精确 token 值进行协调：一个调用方负责刷新，其他调用方使用新 token 重放。每个逻辑请求最多重放一次，因此第二次 401 不会形成登录循环。
 
-Deletion means moving a verified object ID to the recycle bin. Permanent
-deletion and recycle-bin cleanup are out of scope.
+删除操作仅表示把一个经过验证的对象 ID 移入回收站。永久删除和清空回收站不在项目范围内。
 
-Production binaries have no API endpoint option and compile fixed
-`login.123pan.com` and `yun.123pan.com/b/api` roots. Socket-free and cross-repo
-mock tests may opt into endpoint environment variables only through the
-explicit `pan123test` build tag. Release builds must never include that tag.
+生产二进制不提供 API endpoint 覆盖选项，编译时固定使用 `login.123pan.com` 和 `yun.123pan.com/b/api`。无套接字 mock 测试和跨仓库测试只有显式启用 `pan123test` 构建 tag 时，才可通过环境变量替换 endpoint。发布构建绝不能包含该 tag。

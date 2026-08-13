@@ -1,18 +1,11 @@
-# Licensing status
+# 许可证状态
 
-The repository's final license is intentionally unresolved during internal
-development. rclone is MIT licensed; OpenList is AGPL-3.0.
+本仓库在内部开发期间有意暂不确定最终许可证。rclone 使用 MIT 许可证；OpenList 使用 AGPL-3.0 许可证。
 
-Until a provenance and license review is complete:
+在完成来源与许可证审查前：
 
-- do not publish source or binary releases;
-- use OpenList only as a source of protocol facts and independently authored
-  test vectors;
-- treat any direct source adaptation as an AGPL compliance event.
+- 不得公开发布源码或二进制文件；
+- 只能将 OpenList 用作协议事实和独立编写测试向量的来源；
+- 任何直接改编其源码的行为都必须视为一次 AGPL 合规事件。
 
-The repository intentionally contains no vendored OpenList files. The helper
-clones both references only into gitignored `.references/` paths and verifies
-their commits. Before any public release, review the full diff for expressive
-similarity, choose and add the repository license, document third-party
-notices/SBOM output, and decide whether any finding requires releasing the
-plugin under AGPL-3.0-compatible terms. Passing tests does not clear this gate.
+本仓库有意不包含任何 vendoring 的 OpenList 文件。辅助脚本只会把两个参考仓库克隆到被 Git 忽略的 `.references/` 路径，并校验其 commit。任何公开发布之前，都必须审查完整 diff 是否存在表达性相似，选择并加入本仓库的许可证，记录第三方声明与 SBOM 输出，并判断审查结果是否要求按兼容 AGPL-3.0 的条款发布本插件。测试通过并不代表已解除此门禁。
