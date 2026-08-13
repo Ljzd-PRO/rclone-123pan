@@ -118,6 +118,23 @@ func TestListRejectsDuplicateIDAndName(t *testing.T) {
 	}
 }
 
+func TestListRejectsUnsafeDecodedLeaves(t *testing.T) {
+	// rclone's Standard encoder safely represents dot, slash, and NUL names;
+	// only an empty leaf remains capable of collapsing to its parent path.
+	for _, name := range []string{""} {
+		t.Run(fmt.Sprintf("%q", name), func(t *testing.T) {
+			serverName := defaultEncoding.FromStandardName(name)
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				writeEnvelope(t, w, 0, api.FileListData{Next: "-1", Total: 1, InfoList: []api.File{{FileName: serverName, FileID: 1}}})
+			})
+			f := newListingTestFs(t, handler)
+			if _, err := f.listAll(context.Background(), 0); err == nil {
+				t.Fatalf("accepted unsafe server leaf %q", name)
+			}
+		})
+	}
+}
+
 func TestListRejectsStalledNextAndPartialTermination(t *testing.T) {
 	for _, mode := range []string{"stalled", "partial"} {
 		t.Run(mode, func(t *testing.T) {

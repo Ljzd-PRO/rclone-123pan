@@ -171,6 +171,55 @@ func TestMkdirCoordinatesLostResponseAndRmdirChecksTwice(t *testing.T) {
 	}
 }
 
+func TestConcurrentMkdirAcrossRemotesCreatesOneID(t *testing.T) {
+	store := newMutationStore(t)
+	first := newMutationFs(t, store)
+	second := newMutationFs(t, store)
+	const uid = int64(902100000101)
+	first.uid, second.uid = uid, uid
+	first.locks, second.locks = locksForUID(uid), locksForUID(uid)
+
+	ids := make(chan string, 2)
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, remote := range []*Fs{first, second} {
+		wg.Add(1)
+		go func(f *Fs) {
+			defer wg.Done()
+			id, err := f.CreateDir(context.Background(), "0", "same")
+			ids <- id
+			errs <- err
+		}(remote)
+	}
+	wg.Wait()
+	close(ids)
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	var expected string
+	for id := range ids {
+		if expected == "" {
+			expected = id
+		} else if id != expected {
+			t.Fatalf("concurrent mkdir returned IDs %q and %q", expected, id)
+		}
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	count := 0
+	for _, node := range store.nodes {
+		if node.parent == 0 && node.file.FileName == "same" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("concurrent mkdir created %d server objects", count)
+	}
+}
+
 func TestRmdirRejectsRootAndNonEmpty(t *testing.T) {
 	store := newMutationStore(t)
 	store.nodes[11] = mutationNode{file: api.File{FileName: "child", FileID: 11}, parent: 10}

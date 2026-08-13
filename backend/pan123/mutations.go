@@ -27,6 +27,12 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (string, error)
 	if err != nil {
 		return "", err
 	}
+	f.ensureLocks()
+	unlock := f.locks.lock(
+		parentMutationLockKey(parentID),
+		objectPathLockKey(parentID, f.opt.Enc.FromStandardName(leaf)),
+	)
+	defer unlock()
 	if existing, found, err := f.findChild(ctx, parentID, leaf); err != nil {
 		return "", err
 	} else if found {
@@ -70,7 +76,10 @@ func (f *Fs) Mkdir(ctx context.Context, dir string) error {
 // Remove moves the exact current object ID to the recycle bin.
 func (o *Object) Remove(ctx context.Context) error {
 	o.fs.ensureLocks()
-	unlock := o.fs.locks.lock("path:" + o.remote)
+	unlock := o.fs.locks.lock(
+		parentMutationLockKey(o.parentID),
+		objectPathLockKey(o.parentID, o.name),
+	)
 	defer unlock()
 	current, found, err := o.fs.fileByID(ctx, o.parentID, o.id)
 	if err != nil {
@@ -90,9 +99,6 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 	if strings.Trim(dir, "/") == "" {
 		return errors.New("refusing to remove the logical 123Pan root")
 	}
-	f.ensureLocks()
-	unlock := f.locks.lock("path:" + dir)
-	defer unlock()
 	dirIDString, err := f.dirCache.FindDir(ctx, dir, false)
 	if err != nil {
 		return err
@@ -101,6 +107,21 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 	if err != nil {
 		return err
 	}
+	leaf, parentIDString, err := f.dirCache.FindPath(ctx, dir, false)
+	if err != nil {
+		return err
+	}
+	parentID, err := parseID(parentIDString, true)
+	if err != nil {
+		return err
+	}
+	f.ensureLocks()
+	unlock := f.locks.lock(
+		parentMutationLockKey(dirID),
+		parentMutationLockKey(parentID),
+		objectPathLockKey(parentID, f.opt.Enc.FromStandardName(leaf)),
+	)
+	defer unlock()
 	for range 2 {
 		children, err := f.listAll(ctx, dirID)
 		if err != nil {
@@ -109,14 +130,6 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 		if len(children) != 0 {
 			return fs.ErrorDirectoryNotEmpty
 		}
-	}
-	leaf, parentIDString, err := f.dirCache.FindPath(ctx, dir, false)
-	if err != nil {
-		return err
-	}
-	parentID, err := parseID(parentIDString, true)
-	if err != nil {
-		return err
 	}
 	current, found, err := f.findChild(ctx, parentID, leaf)
 	if err != nil {
@@ -235,18 +248,23 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	if source.remote == remote && source.fs == f {
 		return source, nil
 	}
-	f.ensureLocks()
-	unlock := f.locks.lock("path:"+source.remote, "path:"+remote)
-	defer unlock()
-	current, err := source.refreshExact(ctx)
-	if err != nil {
-		return nil, err
-	}
 	targetLeaf, targetParentString, err := f.dirCache.FindPath(ctx, remote, true)
 	if err != nil {
 		return nil, err
 	}
 	targetParent, err := parseID(targetParentString, true)
+	if err != nil {
+		return nil, err
+	}
+	f.ensureLocks()
+	unlock := f.locks.lock(
+		parentMutationLockKey(source.parentID),
+		parentMutationLockKey(targetParent),
+		objectPathLockKey(source.parentID, source.name),
+		objectPathLockKey(targetParent, f.opt.Enc.FromStandardName(targetLeaf)),
+	)
+	defer unlock()
+	current, err := source.refreshExact(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -268,9 +286,6 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 	if sourcePath == "" || targetPath == "" || targetPath == sourcePath || strings.HasPrefix(targetPath, sourcePath+"/") {
 		return fmt.Errorf("refusing invalid directory move from %q to %q", sourcePath, targetPath)
 	}
-	f.ensureLocks()
-	unlock := f.locks.lock("path:"+sourcePath, "path:"+targetPath)
-	defer unlock()
 	sourceIDString, sourceParentString, sourceLeaf, targetParentString, targetLeaf, err := f.dirCache.DirMove(ctx, source.dirCache, source.root, srcRemote, f.root, dstRemote)
 	if err != nil {
 		return err
@@ -287,6 +302,14 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 	if err != nil {
 		return err
 	}
+	f.ensureLocks()
+	unlock := f.locks.lock(
+		parentMutationLockKey(sourceParent),
+		parentMutationLockKey(targetParent),
+		objectPathLockKey(sourceParent, source.opt.Enc.FromStandardName(sourceLeaf)),
+		objectPathLockKey(targetParent, f.opt.Enc.FromStandardName(targetLeaf)),
+	)
+	defer unlock()
 	item, found, err := source.fileByID(ctx, sourceParent, sourceID)
 	if err != nil {
 		return err

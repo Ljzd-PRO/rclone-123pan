@@ -39,6 +39,14 @@ func locksForUID(uid int64) *keyedLocks {
 	return locks.(*keyedLocks)
 }
 
+func parentMutationLockKey(parentID int64) string {
+	return fmt.Sprintf("parent:%d", parentID)
+}
+
+func objectPathLockKey(parentID int64, serverName string) string {
+	return fmt.Sprintf("path:%d:%s", parentID, serverName)
+}
+
 func (k *keyedLocks) lock(keys ...string) func() {
 	keys = append([]string(nil), keys...)
 	sort.Strings(keys)
@@ -249,11 +257,7 @@ func (o *Object) rollbackUpdate(ctx context.Context, stage *Object, stageName st
 	return o.fs.trashExact(ctx, o.parentID, *currentStage)
 }
 
-// Update replaces an object through a recoverable staging/backup transaction.
-func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, _ ...fs.OpenOption) error {
-	o.fs.ensureLocks()
-	unlock := o.fs.locks.lock("path:" + o.remote)
-	defer unlock()
+func (o *Object) updateLocked(ctx context.Context, in io.Reader, src fs.ObjectInfo) error {
 	old, err := o.refreshExact(ctx)
 	if err != nil {
 		return err
@@ -308,4 +312,15 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, _ 
 	updated := newObject(o.fs, o.remote, o.parentID, *final)
 	*o = *updated
 	return nil
+}
+
+// Update replaces an object through a recoverable staging/backup transaction.
+func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, _ ...fs.OpenOption) error {
+	o.fs.ensureLocks()
+	unlock := o.fs.locks.lock(
+		parentMutationLockKey(o.parentID),
+		objectPathLockKey(o.parentID, o.name),
+	)
+	defer unlock()
+	return o.updateLocked(ctx, in, src)
 }

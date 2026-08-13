@@ -183,6 +183,13 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 	if err != nil {
 		return nil, err
 	}
+	f.ensureLocks()
+	serverName := f.opt.Enc.FromStandardName(leaf)
+	unlock := f.locks.lock(
+		parentMutationLockKey(parentID),
+		objectPathLockKey(parentID, serverName),
+	)
+	defer unlock()
 	existing, found, err := f.findChild(ctx, parentID, leaf)
 	if err != nil {
 		return nil, err
@@ -192,7 +199,7 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 			return nil, fs.ErrorIsDir
 		}
 		o := newObject(f, src.Remote(), parentID, *existing)
-		return o, o.Update(ctx, in, src, options...)
+		return o, o.updateLocked(ctx, in, src)
 	}
 	return f.uploadNew(ctx, in, src, parentID, leaf, src.Remote())
 }

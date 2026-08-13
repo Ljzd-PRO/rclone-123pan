@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 
 	"github.com/ljzd/rclone-123pan/backend/pan123/api"
 	"github.com/rclone/rclone/fs"
@@ -21,6 +22,10 @@ const (
 type consistencyError struct{ message string }
 
 func (e *consistencyError) Error() string { return "123Pan inconsistent listing: " + e.message }
+
+func validDecodedLeaf(name string) bool {
+	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, "/\x00")
+}
 
 func (f *Fs) listAll(ctx context.Context, parentID int64) ([]api.File, error) {
 	if parentID < 0 {
@@ -96,6 +101,9 @@ func (f *Fs) listOnce(ctx context.Context, parentID int64) ([]api.File, error) {
 				return nil, &consistencyError{message: fmt.Sprintf("duplicate object ID %d", item.FileID)}
 			}
 			standardName := f.opt.Enc.ToStandardName(item.FileName)
+			if !validDecodedLeaf(standardName) {
+				return nil, &consistencyError{message: fmt.Sprintf("object ID %d decoded to unsafe leaf %q", item.FileID, standardName)}
+			}
 			if otherID, exists := seenNames[standardName]; exists {
 				return nil, &consistencyError{message: fmt.Sprintf("path %q is ambiguous between IDs %d and %d", standardName, otherID, item.FileID)}
 			}
