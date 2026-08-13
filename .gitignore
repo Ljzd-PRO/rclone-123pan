@@ -1,0 +1,8 @@
+.references/
+bin/
+dist/
+coverage/
+/rclone-123
+/rclone-123.exe
+*.test
+*.out
