@@ -51,6 +51,7 @@ type presignedHarness struct {
 	t         *testing.T
 	urlCalls  atomic.Int64
 	putCalls  atomic.Int64
+	merge     atomic.Int64
 	complete  atomic.Int64
 	forbidOne atomic.Bool
 	mu        sync.Mutex
@@ -78,7 +79,25 @@ func (h *presignedHarness) control() http.Handler {
 				urls[strconv.FormatInt(part, 10)] = fmt.Sprintf("https://upload.test/part/%d?generation=%d&secret=redacted", part, generation)
 			}
 			writeEnvelope(h.t, w, 0, api.PresignedURLsData{PresignedURLs: urls})
-		case "/b/api" + api.UploadCompleteV2Path:
+		case "/b/api" + api.S3CompletePath:
+			var body struct {
+				Bucket      string `json:"bucket"`
+				Key         string `json:"key"`
+				UploadID    string `json:"uploadId"`
+				StorageNode string `json:"StorageNode"`
+			}
+			if err := decodeRequestJSON(r, &body); err != nil {
+				h.t.Error(err)
+			}
+			if body.Bucket != "bucket" || body.Key != "key" {
+				h.t.Errorf("invalid merge request: %#v", body)
+			}
+			h.merge.Add(1)
+			writeEnvelope(h.t, w, 0, nil)
+		case "/b/api" + api.UploadCompletePath:
+			if h.merge.Load() != 1 {
+				h.t.Error("file completion called before exactly one S3 merge")
+			}
 			h.complete.Add(1)
 			writeEnvelope(h.t, w, 0, nil)
 		default:
@@ -191,8 +210,8 @@ func TestPresignedUploadBoundaries(t *testing.T) {
 				t.Fatal(err)
 			}
 			parts, _ := uploadPartCount(size)
-			if h.complete.Load() != 1 || int64(len(h.parts)) != parts {
-				t.Fatalf("complete=%d parts=%d want=%d", h.complete.Load(), len(h.parts), parts)
+			if h.merge.Load() != 1 || h.complete.Load() != 1 || int64(len(h.parts)) != parts {
+				t.Fatalf("merge=%d complete=%d parts=%d want=%d", h.merge.Load(), h.complete.Load(), len(h.parts), parts)
 			}
 			var joined []byte
 			for part := int64(1); part <= parts; part++ {
@@ -214,8 +233,8 @@ func TestPresigned403RefreshesBatch(t *testing.T) {
 	if err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket"}, source); err != nil {
 		t.Fatal(err)
 	}
-	if h.urlCalls.Load() != 2 || h.putCalls.Load() != 2 || h.complete.Load() != 1 {
-		t.Fatalf("urls=%d puts=%d complete=%d", h.urlCalls.Load(), h.putCalls.Load(), h.complete.Load())
+	if h.urlCalls.Load() != 2 || h.putCalls.Load() != 2 || h.merge.Load() != 1 || h.complete.Load() != 1 {
+		t.Fatalf("urls=%d puts=%d merge=%d complete=%d", h.urlCalls.Load(), h.putCalls.Load(), h.merge.Load(), h.complete.Load())
 	}
 }
 
@@ -234,8 +253,8 @@ func TestPresignedDoesNotCompleteOnShortOrChangedSource(t *testing.T) {
 			f := newPresignedTestFs(t, h)
 			source := &preparedSource{reader: strings.NewReader(tc.data), size: tc.size, md5: tc.sum}
 			err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket"}, source)
-			if err == nil || h.complete.Load() != 0 {
-				t.Fatalf("err=%v complete=%d", err, h.complete.Load())
+			if err == nil || h.merge.Load() != 0 || h.complete.Load() != 0 {
+				t.Fatalf("err=%v merge=%d complete=%d", err, h.merge.Load(), h.complete.Load())
 			}
 		})
 	}

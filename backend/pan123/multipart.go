@@ -262,16 +262,29 @@ func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source 
 	if actualMD5 != source.md5 {
 		return fmt.Errorf("source MD5 changed during upload: declared %s, read %s", source.md5, actualMD5)
 	}
-	request := map[string]any{
+	mergeRequest := map[string]any{
 		"StorageNode": upload.StorageNode,
 		"bucket":      upload.Bucket,
-		"fileId":      upload.FileID,
-		"fileSize":    source.size,
-		"isMultipart": parts > 1,
 		"key":         upload.Key,
 		"uploadId":    upload.UploadID,
 	}
-	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.UploadCompleteV2Path, request, nil); err != nil {
+	// The current personal web service requires S3 parts to be merged before
+	// the 123Pan file record is committed. The fixed OpenList source declares
+	// this endpoint but its v2 shortcut can return code=0 without making the
+	// object visible on the live service.
+	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.S3CompletePath, mergeRequest, nil); err != nil {
+		return &ambiguousCompleteError{FileID: upload.FileID, err: err}
+	}
+	if f.uploadMergeDelay > 0 {
+		timer := time.NewTimer(f.uploadMergeDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.UploadCompletePath, map[string]any{"fileId": upload.FileID}, nil); err != nil {
 		return &ambiguousCompleteError{FileID: upload.FileID, err: err}
 	}
 	return nil

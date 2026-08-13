@@ -68,16 +68,17 @@ type Options struct {
 
 // Fs represents a 123Pan personal-account remote.
 type Fs struct {
-	name           string
-	root           string
-	opt            Options
-	client         *apiClient
-	features       *fs.Features
-	dirCache       *dircache.DirCache
-	uid            int64
-	downloadClient *http.Client
-	locks          *keyedLocks
-	stageName      func(string) (string, error)
+	name             string
+	root             string
+	opt              Options
+	client           *apiClient
+	features         *fs.Features
+	dirCache         *dircache.DirCache
+	uid              int64
+	downloadClient   *http.Client
+	uploadMergeDelay time.Duration
+	locks            *keyedLocks
+	stageName        func(string) (string, error)
 }
 
 // NewFs constructs and validates a personal-account remote.
@@ -133,7 +134,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, fmt.Errorf("validate configured 123Pan root folder ID: %w", err)
 	}
 
-	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx), locks: locksForUID(user.UID), stageName: randomStageName}
+	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx), uploadMergeDelay: time.Second, locks: locksForUID(user.UID), stageName: randomStageName}
 	f.dirCache = dircache.New(f.root, opt.RootFolderID, f)
 	f.features = (&fs.Features{
 		CaseInsensitive:         false,

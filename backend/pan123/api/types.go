@@ -18,6 +18,7 @@ const (
 	RenamePath            = "/file/rename"
 	TrashPath             = "/file/trash"
 	UploadCompletePath    = "/file/upload_complete"
+	S3CompletePath        = "/file/s3_complete_multipart_upload"
 	PresignedPartsPath    = "/file/s3_repare_upload_parts_batch"
 	SingleObjectAuthPath  = "/file/s3_upload_object/auth"
 	UploadCompleteV2Path  = "/file/upload_complete/v2"
