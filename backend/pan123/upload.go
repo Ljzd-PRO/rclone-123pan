@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/ljzd/rclone-123pan/backend/pan123/api"
@@ -113,10 +114,13 @@ func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, sou
 		// 2 is the personal-web API's overwrite mode used by the fixed
 		// OpenList reference. The backend has already serialized and freshly
 		// checked this exact target before issuing the request.
-		"duplicate":    2,
-		"etag":         source.md5,
-		"fileName":     f.opt.Enc.FromStandardName(name),
-		"parentFileId": parentID,
+		"duplicate": 2,
+		"etag":      source.md5,
+		"fileName":  f.opt.Enc.FromStandardName(name),
+		// The personal web client and the fixed OpenList reference serialize
+		// directory IDs as decimal strings. Sending a JSON number is accepted by
+		// some endpoints but can allocate an upload which never becomes visible.
+		"parentFileId": strconv.FormatInt(parentID, 10),
 		"size":         source.size,
 		"type":         0,
 	}

@@ -130,10 +130,13 @@ func TestUploadRequestRejectsFalseSuccess(t *testing.T) {
 		if request["duplicate"] != float64(2) {
 			t.Fatalf("duplicate mode = %#v, want 2", request["duplicate"])
 		}
+		if request["parentFileId"] != "123" {
+			t.Fatalf("parentFileId = %#v, want decimal string", request["parentFileId"])
+		}
 		writeEnvelope(t, w, 0, api.UploadData{FileID: 9, Reuse: false, Key: ""})
 	})
 	f := newListingTestFs(t, handler)
-	_, err := f.requestUpload(context.Background(), 0, "x", &preparedSource{size: 1, md5: "0cc175b9c0f1b6a831c399e269772661"})
+	_, err := f.requestUpload(context.Background(), 123, "x", &preparedSource{size: 1, md5: "0cc175b9c0f1b6a831c399e269772661"})
 	if err == nil {
 		t.Fatal("accepted Reuse=false with empty Key")
 	}
