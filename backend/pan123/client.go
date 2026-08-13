@@ -178,7 +178,11 @@ func (c *apiClient) call(ctx context.Context, srv *rest.Client, method, path str
 	}
 	var finalErr error
 	err = c.pacer.Call(func() (bool, error) {
-		if err := c.gate.wait(ctx, path); err != nil {
+		endpoint := path
+		if query := strings.IndexByte(endpoint, '?'); query >= 0 {
+			endpoint = endpoint[:query]
+		}
+		if err := c.gate.wait(ctx, endpoint); err != nil {
 			return false, err
 		}
 		rootURL := ""

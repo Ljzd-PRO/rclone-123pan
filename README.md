@@ -24,7 +24,8 @@ Only protocol behavior from OpenList `drivers/123` is used as a reference.
 | `123pan` backend registration | Implemented |
 | Protocol types, signing, strict envelopes, redaction | Implemented and unit tested |
 | Password login, cached token, coordinated 401 refresh, logout | Implemented and unit tested |
-| File operations | In progress |
+| Strict listing, path resolution, MD5, quota and user info | Implemented and unit tested |
+| Download, upload and write operations | In progress |
 | Mock and fault-injection suite | Planned |
 | Dedicated-account live validation | Blocked: no account supplied |
 | Public release | Blocked: license review and live validation |

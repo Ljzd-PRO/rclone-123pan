@@ -15,6 +15,7 @@ import (
 	"github.com/rclone/rclone/fs/config/configstruct"
 	"github.com/rclone/rclone/fs/config/obscure"
 	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/lib/dircache"
 	"github.com/rclone/rclone/lib/encoder"
 )
 
@@ -68,6 +69,8 @@ type Fs struct {
 	opt      Options
 	client   *apiClient
 	features *fs.Features
+	dirCache *dircache.DirCache
+	uid      int64
 }
 
 // NewFs constructs and validates a personal-account remote.
@@ -116,13 +119,28 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		return nil, fmt.Errorf("validate 123Pan account: invalid UID %d", user.UID)
 	}
 
-	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c}
+	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID}
+	f.dirCache = dircache.New(f.root, opt.RootFolderID, f)
 	f.features = (&fs.Features{
 		CaseInsensitive:         false,
 		CanHaveEmptyDirectories: true,
 		PartialUploads:          true,
 		DuplicateFiles:          false,
 	}).Fill(ctx, f)
+	if err := f.dirCache.FindRoot(ctx, false); err != nil {
+		return f, fmt.Errorf("resolve 123Pan root: %w", err)
+	}
+	resolvedID, err := f.dirCache.RootID(ctx, false)
+	if err != nil {
+		return f, fmt.Errorf("resolve 123Pan root ID: %w", err)
+	}
+	rootID, err = strconv.ParseInt(resolvedID, 10, 64)
+	if err != nil || rootID < 0 {
+		return f, errorsNewProtocol("resolved root has an invalid ID")
+	}
+	if _, err := f.listAll(ctx, rootID); err != nil {
+		return f, fmt.Errorf("validate 123Pan root directory: %w", err)
+	}
 	return f, nil
 }
 
@@ -148,14 +166,6 @@ func (f *Fs) Hashes() hash.Set { return hash.Set(hash.MD5) }
 // Features returns optional rclone capabilities.
 func (f *Fs) Features() *fs.Features { return f.features }
 
-// List is implemented by the listing milestone.
-func (f *Fs) List(context.Context, string) (fs.DirEntries, error) { return nil, fs.ErrorNotImplemented }
-
-// NewObject is implemented by the listing milestone.
-func (f *Fs) NewObject(context.Context, string) (fs.Object, error) {
-	return nil, fs.ErrorNotImplemented
-}
-
 // Put is implemented by the upload milestone.
 func (f *Fs) Put(context.Context, io.Reader, fs.ObjectInfo, ...fs.OpenOption) (fs.Object, error) {
 	return nil, fs.ErrorNotImplemented
@@ -177,3 +187,7 @@ func (f *Fs) Disconnect(ctx context.Context) error {
 
 var _ fs.Fs = (*Fs)(nil)
 var _ fs.Disconnecter = (*Fs)(nil)
+var _ fs.Abouter = (*Fs)(nil)
+var _ fs.UserInfoer = (*Fs)(nil)
+var _ fs.DirCacheFlusher = (*Fs)(nil)
+var _ dircache.DirCacher = (*Fs)(nil)
