@@ -97,6 +97,9 @@ func (f *Fs) listOnce(ctx context.Context, parentID int64) ([]api.File, error) {
 			if item.Size < 0 {
 				return nil, &consistencyError{message: fmt.Sprintf("negative size for ID %d", item.FileID)}
 			}
+			if item.Type != 0 && item.Type != 1 {
+				return nil, &consistencyError{message: fmt.Sprintf("unknown object type %d for ID %d", item.Type, item.FileID)}
+			}
 			if _, exists := seenIDs[item.FileID]; exists {
 				return nil, &consistencyError{message: fmt.Sprintf("duplicate object ID %d", item.FileID)}
 			}
@@ -156,6 +159,37 @@ func (f *Fs) findChild(ctx context.Context, parentID int64, leaf string) (*api.F
 		match = &copy
 	}
 	return match, match != nil, nil
+}
+
+// verifyDirectoryPathID walks the logical directory path from the configured
+// root without trusting intermediate dircache entries. Callers use it after
+// acquiring write locks to reject an ID which became stale while waiting.
+func (f *Fs) verifyDirectoryPathID(ctx context.Context, dir string, expectedID int64) error {
+	rootIDString, err := f.dirCache.RootID(ctx, false)
+	if err != nil {
+		return err
+	}
+	currentID, err := parseID(rootIDString, true)
+	if err != nil {
+		return err
+	}
+	for _, leaf := range strings.Split(strings.Trim(dir, "/"), "/") {
+		if leaf == "" {
+			continue
+		}
+		item, found, err := f.findChild(ctx, currentID, leaf)
+		if err != nil {
+			return err
+		}
+		if !found || !item.IsDir() {
+			return fmt.Errorf("write parent %q is no longer a visible directory", dir)
+		}
+		currentID = item.FileID
+	}
+	if currentID != expectedID {
+		return fmt.Errorf("write parent %q changed from ID %d to ID %d", dir, expectedID, currentID)
+	}
+	return nil
 }
 
 // FindLeaf implements dircache.DirCacher without creating anything.

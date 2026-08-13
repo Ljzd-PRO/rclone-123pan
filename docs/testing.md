@@ -20,6 +20,10 @@ Mutation tests cover lost mkdir responses, two-pass empty Rmdir, root and
 non-empty guards, stale object snapshots, idempotent Remove, combined
 move+rename, directory subtree rejection, and dircache invalidation. All mock
 deletions require the exact ID and current server name.
+They also exercise concurrent same-name creation across two remote instances,
+shared UID lock coordination, stale parent-ID rejection, and the rule that a
+verified replacement is not disturbed when its old backup can no longer be
+proved recoverable.
 
 Offline command tests cover resolve/submit, destination root ID, stable JSON,
 all documented status mappings, unknown states, positive/unique ID validation,

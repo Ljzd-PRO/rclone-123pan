@@ -26,6 +26,9 @@ If reversal cannot be proved, `RecoveryError` prints the staging and backup
 IDs. Stop automated retries, list the parent without filters, and record each
 ID/name/size/MD5. Prefer restoring the known backup ID to the target name; do
 not trash either candidate until a full download verifies the desired content.
+In particular, when backup deletion is ambiguous and that backup ID is no
+longer visible, the backend keeps the already verified replacement at the
+target name instead of risking an empty target during rollback.
 
 ## Ambiguous completion
 

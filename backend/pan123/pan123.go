@@ -190,6 +190,10 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 		objectPathLockKey(parentID, serverName),
 	)
 	defer unlock()
+	parentRemote, _ := dircache.SplitPath(src.Remote())
+	if err := f.verifyDirectoryPathID(ctx, parentRemote, parentID); err != nil {
+		return nil, err
+	}
 	existing, found, err := f.findChild(ctx, parentID, leaf)
 	if err != nil {
 		return nil, err

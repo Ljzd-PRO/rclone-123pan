@@ -220,6 +220,20 @@ func TestConcurrentMkdirAcrossRemotesCreatesOneID(t *testing.T) {
 	}
 }
 
+func TestWriteParentFreshWalkRejectsStaleDircacheID(t *testing.T) {
+	store := newMutationStore(t)
+	f := newMutationFs(t, store)
+	if err := f.verifyDirectoryPathID(context.Background(), "dir", 10); err != nil {
+		t.Fatal(err)
+	}
+	store.mu.Lock()
+	delete(store.nodes, 10)
+	store.mu.Unlock()
+	if err := f.verifyDirectoryPathID(context.Background(), "dir", 10); err == nil {
+		t.Fatal("accepted a deleted parent directory ID")
+	}
+}
+
 func TestRmdirRejectsRootAndNonEmpty(t *testing.T) {
 	store := newMutationStore(t)
 	store.nodes[11] = mutationNode{file: api.File{FileName: "child", FileID: 11}, parent: 10}

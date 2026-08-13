@@ -81,6 +81,10 @@ func (o *Object) Remove(ctx context.Context) error {
 		objectPathLockKey(o.parentID, o.name),
 	)
 	defer unlock()
+	parentRemote, _ := dircache.SplitPath(o.remote)
+	if err := o.fs.verifyDirectoryPathID(ctx, parentRemote, o.parentID); err != nil {
+		return err
+	}
 	current, found, err := o.fs.fileByID(ctx, o.parentID, o.id)
 	if err != nil {
 		return err
@@ -122,6 +126,10 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 		objectPathLockKey(parentID, f.opt.Enc.FromStandardName(leaf)),
 	)
 	defer unlock()
+	parentRemote, _ := dircache.SplitPath(dir)
+	if err := f.verifyDirectoryPathID(ctx, parentRemote, parentID); err != nil {
+		return err
+	}
 	for range 2 {
 		children, err := f.listAll(ctx, dirID)
 		if err != nil {
@@ -264,6 +272,14 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 		objectPathLockKey(targetParent, f.opt.Enc.FromStandardName(targetLeaf)),
 	)
 	defer unlock()
+	sourceDir, _ := dircache.SplitPath(source.remote)
+	if err := source.fs.verifyDirectoryPathID(ctx, sourceDir, source.parentID); err != nil {
+		return nil, err
+	}
+	targetDir, _ := dircache.SplitPath(remote)
+	if err := f.verifyDirectoryPathID(ctx, targetDir, targetParent); err != nil {
+		return nil, err
+	}
 	current, err := source.refreshExact(ctx)
 	if err != nil {
 		return nil, err
@@ -310,6 +326,14 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 		objectPathLockKey(targetParent, f.opt.Enc.FromStandardName(targetLeaf)),
 	)
 	defer unlock()
+	sourceDir, _ := dircache.SplitPath(srcRemote)
+	if err := source.verifyDirectoryPathID(ctx, sourceDir, sourceParent); err != nil {
+		return err
+	}
+	targetDir, _ := dircache.SplitPath(dstRemote)
+	if err := f.verifyDirectoryPathID(ctx, targetDir, targetParent); err != nil {
+		return err
+	}
 	item, found, err := source.fileByID(ctx, sourceParent, sourceID)
 	if err != nil {
 		return err

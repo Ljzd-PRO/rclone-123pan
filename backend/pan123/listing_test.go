@@ -135,6 +135,16 @@ func TestListRejectsUnsafeDecodedLeaves(t *testing.T) {
 	}
 }
 
+func TestListRejectsUnknownObjectType(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeEnvelope(t, w, 0, api.FileListData{Next: "-1", Total: 1, InfoList: []api.File{{FileName: "unknown", FileID: 1, Type: 7}}})
+	})
+	f := newListingTestFs(t, handler)
+	if _, err := f.listAll(context.Background(), 0); err == nil {
+		t.Fatal("accepted an unknown object type")
+	}
+}
+
 func TestListRejectsStalledNextAndPartialTermination(t *testing.T) {
 	for _, mode := range []string{"stalled", "partial"} {
 		t.Run(mode, func(t *testing.T) {

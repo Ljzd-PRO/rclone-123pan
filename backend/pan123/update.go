@@ -13,6 +13,7 @@ import (
 
 	"github.com/ljzd/rclone-123pan/backend/pan123/api"
 	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/lib/dircache"
 )
 
 type lockEntry struct {
@@ -258,6 +259,10 @@ func (o *Object) rollbackUpdate(ctx context.Context, stage *Object, stageName st
 }
 
 func (o *Object) updateLocked(ctx context.Context, in io.Reader, src fs.ObjectInfo) error {
+	parentRemote, _ := dircache.SplitPath(o.remote)
+	if err := o.fs.verifyDirectoryPathID(ctx, parentRemote, o.parentID); err != nil {
+		return err
+	}
 	old, err := o.refreshExact(ctx)
 	if err != nil {
 		return err
