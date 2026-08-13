@@ -74,7 +74,7 @@ func (h *presignedHarness) control() http.Handler {
 				h.t.Error(err)
 			}
 			urls := make(map[string]string)
-			for part := body.Start; part <= body.End; part++ {
+			for part := body.Start; part < body.End; part++ {
 				urls[strconv.FormatInt(part, 10)] = fmt.Sprintf("https://upload.test/part/%d?generation=%d&secret=redacted", part, generation)
 			}
 			writeEnvelope(h.t, w, 0, api.PresignedURLsData{PresignedURLs: urls})

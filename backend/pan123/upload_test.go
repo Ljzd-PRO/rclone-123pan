@@ -3,6 +3,7 @@ package pan123
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -122,6 +123,13 @@ func TestRapidUploadReadsNoBodyAndVerifies(t *testing.T) {
 
 func TestUploadRequestRejectsFalseSuccess(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		if request["duplicate"] != float64(2) {
+			t.Fatalf("duplicate mode = %#v, want 2", request["duplicate"])
+		}
 		writeEnvelope(t, w, 0, api.UploadData{FileID: 9, Reuse: false, Key: ""})
 	})
 	f := newListingTestFs(t, handler)

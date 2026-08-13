@@ -73,10 +73,12 @@ func uploadBatches(parts int64) []partBatch {
 
 func (f *Fs) getUploadURLs(ctx context.Context, upload api.UploadData, batch partBatch, single bool) (map[string]string, error) {
 	request := map[string]any{
-		"StorageNode":     upload.StorageNode,
-		"bucket":          upload.Bucket,
-		"key":             upload.Key,
-		"partNumberEnd":   batch.end,
+		"StorageNode": upload.StorageNode,
+		"bucket":      upload.Bucket,
+		"key":         upload.Key,
+		// The web API uses an exclusive upper bound even though returned URL
+		// keys are one-based part numbers.
+		"partNumberEnd":   batch.end + 1,
 		"partNumberStart": batch.start,
 		"uploadId":        upload.UploadID,
 	}

@@ -109,8 +109,11 @@ func (e *uploadPostconditionError) Error() string {
 
 func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, source *preparedSource) (api.UploadData, error) {
 	request := map[string]any{
-		"driveId":      0,
-		"duplicate":    1,
+		"driveId": 0,
+		// 2 is the personal-web API's overwrite mode used by the fixed
+		// OpenList reference. The backend has already serialized and freshly
+		// checked this exact target before issuing the request.
+		"duplicate":    2,
 		"etag":         source.md5,
 		"fileName":     f.opt.Enc.FromStandardName(name),
 		"parentFileId": parentID,
@@ -123,6 +126,13 @@ func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, sou
 	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.UploadRequestPath, request, &upload); err != nil {
 		return api.UploadData{}, err
 	}
+	credentialCount := 0
+	for _, value := range []string{upload.AccessKeyID, upload.SecretAccessKey, upload.SessionToken} {
+		if value != "" {
+			credentialCount++
+		}
+	}
+	fs.Debugf(f, "123Pan upload request response: file_id=%d reuse=%t key_present=%t upload_id_present=%t temporary_credentials=%d", upload.FileID, upload.Reuse, upload.Key != "", upload.UploadID != "", credentialCount)
 	if upload.FileID <= 0 {
 		return api.UploadData{}, errorsNewProtocol("upload request returned an invalid file ID")
 	}
