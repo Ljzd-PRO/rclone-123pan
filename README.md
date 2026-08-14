@@ -3,7 +3,7 @@
 本仓库用于构建定制的 `rclone-123` 二进制，其中包含面向 123 网盘个人账号的实验性树外后端。
 
 > [!WARNING]
-> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-15 已通过官方 Web 脱敏抓线闭合当前单片、多片和秒传协议；修复后的后端已完成 0 至 48 MiB+1 上传边界、100/101 项分页、秒传、可恢复 Update、安全 Move/DirMove/Rmdir、core Copy/sync 回退和只读 RC 的隔离真实闭环。bisync、VFS、serve、挂载和七日 canary 尚未完成，因此仍不适合公开发布或生产使用。
+> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-15 已通过官方 Web 脱敏抓线闭合当前单片、多片和秒传协议；修复后的后端已完成 0 至 48 MiB+1 上传边界、100/101 项分页、秒传、可恢复 Update、安全 Move/DirMove/Rmdir、core Copy/sync、bisync 双向恢复和四种 VFS cache mode 的隔离真实闭环。其他 serve 协议、原生挂载和七日 canary 尚未完成，因此仍不适合公开发布或生产使用。
 
 ## 固定基线
 
@@ -27,8 +27,10 @@
 | 可恢复的 staging/backup 对象替换 | 已通过故障测试与隔离真实闭环 |
 | 安全的 mkdir/remove/rmdir 和按 ID 验证的 Move/DirMove | 已通过单元测试与隔离真实闭环 |
 | 离线任务 add/status/delete 后端命令 | 已实现并通过单元测试 |
+| bisync | `--checksum` resync、双向增量、check-access、max-delete 阻断和 recover 已隔离实测 |
+| VFS 与 WebDAV serve | off/minimal/writes/full 的 PUT、GET、PROPFIND 及 VFS RC 已隔离实测 |
 | 故障 transport、受门禁保护的 fstests、固定 rclone 契约注入 | 已实现 |
-| 隔离真实账号测试 | 0 至 48 MiB+1、并发 3、100/101 项分页、完整下载、MD5、秒传、Update、Move/DirMove、core Copy/sync、max-delete、只读 RC 和精确软删除已通过 |
+| 隔离真实账号测试 | 0 至 48 MiB+1、并发 3、100/101 项分页、完整下载、MD5、秒传、Update、Move/DirMove、core Copy/sync、bisync、四种 VFS cache mode、RC 和精确软删除已通过 |
 | 专用空账号完整契约测试 | 阻断：尚无满足 sentinel 门禁的专用账号 |
 | 公开发布 | 阻断：许可证审查和真实环境验证未完成 |
 

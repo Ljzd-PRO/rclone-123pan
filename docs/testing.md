@@ -30,6 +30,6 @@ manifest 对文件数、目录数、单文件大小和累计 payload 实施不�
 
 手动触发的内部 alpha 工作流通过 `tools/build-alpha.sh`，使用 Go 1.25.0、`CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false` 和强制 `noselfupdate` 交叉编译五个支持目标。脚本会把归档文件的所有者和时间戳统一为源码 commit，移除 gzip/zip 元数据，生成确定性的 CycloneDX 1.6 module SBOM 与来源记录，并校验 `SHA256SUMS`。artifact 保持私有且七天后过期；工作流没有 release 或 package 写权限。
 
-2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片/秒传线型。修复后的后端已经完成 1 KiB 普通上传、秒传、0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1 边界、并发 3、100/101 项真实分页、完整下载 MD5、可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝、精确软删除、双哨兵复核、同尺寸不同内容的 `check --checksum`、core Copy/sync 回退、max-delete 与只读 RC。固定上游的账号无关 operations/sync/VFS/bisync 单元契约也已真实运行通过。160 MiB+1 预申请进一步确认服务端会返回 32 MiB `SliceSize`，但本轮因不可退款 payload 配额不再重试数据上传。离线任务、mount 和专用空账号 `test_all` 仍须按门禁继续。详细记录见[真实账号测试记录](live-testing.md)。
+2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片/秒传线型。修复后的后端已经完成 1 KiB 普通上传、秒传、0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1 边界、并发 3、100/101 项真实分页、完整下载 MD5、可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝、精确软删除、双哨兵复核、同尺寸不同内容的 `check --checksum`、core Copy/sync 回退、max-delete、bisync 双向恢复，以及 WebDAV 上 off/minimal/writes/full 四种 VFS cache mode 与 VFS RC。固定上游的账号无关 operations/sync/VFS/bisync 单元契约也已真实运行通过。160 MiB+1 预申请进一步确认服务端会返回 32 MiB `SliceSize`，但本轮因不可退款 payload 配额不再重试数据上传。其他 serve 协议、离线任务 live、原生 mount 和专用空账号 `test_all` 仍须按门禁继续。详细记录见[真实账号测试记录](live-testing.md)。
 
 在获得专用空测试账号、隔离的非零根目录和两个根外不可变 sentinel 前，稳定版发布仍保持阻断。后续真实测试必须只在随机命名的 `rclone-test-[a-z0-9]{12}` 目录中操作，并且只清理由本轮记录的 ID。

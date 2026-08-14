@@ -1,6 +1,6 @@
 # 安全说明
 
-123 网盘个人盘后端使用逆向分析所得的 Web API。凭据只能发送至 `login.123pan.com`；经过认证的控制请求只能发送至 `yun.123pan.com`。下载请求绝不能把 API Authorization 请求头转发给存储主机。
+123 网盘个人盘后端使用逆向分析所得的 Web API。凭据只能发送至 `login.123pan.com`；经过认证的控制请求只能发送至官方 Web 实测的 `api.123278.com`。下载请求绝不能把 API Authorization 请求头转发给存储主机。
 
 密码、token、签名 URL、Authorization 请求头、Cookie 和预签名查询参数必须从错误、日志和 CI artifact 中移除或脱敏。
 
@@ -10,4 +10,4 @@
 
 删除操作仅表示把一个经过验证的对象 ID 移入回收站。永久删除和清空回收站不在项目范围内。
 
-生产二进制不提供 API endpoint 覆盖选项，编译时固定使用 `login.123pan.com` 和 `yun.123pan.com/b/api`。无套接字 mock 测试和跨仓库测试只有显式启用 `pan123test` 构建 tag 时，才可通过环境变量替换 endpoint。发布构建绝不能包含该 tag。
+生产二进制不提供 API endpoint 覆盖选项，编译时固定使用 `login.123pan.com` 和 `api.123278.com/b/api`，Web 页面来源固定为 `yun.123pan.cn`。无套接字 mock 测试和跨仓库测试只有显式启用 `pan123test` 构建 tag 时，才可通过环境变量替换 endpoint。发布构建绝不能包含该 tag。

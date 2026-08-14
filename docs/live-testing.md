@@ -45,8 +45,12 @@
 22. 在另一个已登记空目录中以 `sync --checksum` 创建两个各 2 字节对象并逐个完整下载核验；`--max-delete 0` 按预期以阈值错误停止且两个对象都保留，随后 `--max-delete 1` 只软删除 ledger 中指定对象，两次列表均确认其消失。
 23. 临时 RC 服务只绑定本机回环地址；`operations/list` 和 `operations/stat` 返回的名称、ID 与 MD5 均与 CLI 一致，验证后立即停止。整个 core/RC 闭环前后两个哨兵未变化。
 24. 固定 rclone v1.75.0 的树外注入脚本不再只做编译检查；账号无关的 `fs/operations`、`fs/sync`、`vfs` 和 `cmd/bisync` 单元契约已真实运行通过。专用空账号 `test_all` 仍由独立门禁阻止在个人数据账号上运行。
+25. 在已登记空目录中以 `--compare size,checksum` 执行 bisync resync，3 字节 `RCLONE_TEST` 和 2 字节数据文件均上传成功；逐个完整下载后与本地源一致。
+26. 启用 `--check-access` 后，从本地新增 2 字节对象能同步到远端；另一个已登记的 1 字节远端对象按同一 ID 移入 bisync 目录后，也能反向下载到本地。每轮都找到两侧唯一 marker，并以完整内容、ID 和 MD5 核验。
+27. 删除本地测试文件后，bisync `--max-delete 0` 在应用远端删除前安全中止；恢复本地文件并使用 `--recover --resilient` 后无传输收敛，四个远端对象的 ID 全部保持不变。
+28. 使用四个已登记空目录分别验证 VFS cache mode `off`、`minimal`、`writes` 和 `full`。每种模式都通过 WebDAV PUT、GET、PROPFIND 与完整内容比较；full 模式还通过回环 RC 验证 `vfs/list`、`vfs/stats`、`vfs/refresh` 和 `vfs/forget`。服务仅绑定 `127.0.0.1`，验证后立即停止。
 
-本轮累计计数为 66 次文件分配、50 个目录分配和 469,770,298 字节声明 payload，没有超过 100 文件、50 目录、单文件 160 MiB+1 和 512 MiB 硬预算。bisync、VFS 和挂载测试尚未执行；目录配额已用尽，后续上层测试只允许复用已登记的空目录，不能分配新目录。160 MiB+1 成功闭环因本轮不可退款 payload 配额而留待下一次全新活动。
+本轮累计计数为 73 次文件分配、50 个目录分配和 469,770,321 字节声明 payload，没有超过 100 文件、50 目录、单文件 160 MiB+1 和 512 MiB 硬预算。目录配额已用尽，后续上层测试只允许复用已登记的空目录，不能分配新目录。当前 `CGO_ENABLED=0` 核心二进制在 macOS 只编入 `nfsmount`，没有 `mount` 子命令；native mount 必须使用对应平台依赖和构建产物单独验证，不能用 WebDAV/VFS 结果替代。160 MiB+1 成功闭环因本轮不可退款 payload 配额而留待下一次全新活动。
 
 ## 2026-08-14 隔离冒烟测试
 

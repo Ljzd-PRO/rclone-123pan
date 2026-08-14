@@ -47,6 +47,8 @@
 - 传输：`copy`、`copyto`、`copyurl`、`rcat`、`sync`、`move`、`moveto`、`--backup-dir`。
 - 校验：`check`、`check --download`、`checksum`；正确性敏感的同步必须使用 `--checksum`。
 - 删除：`delete`、`deletefile`、`rmdir`、`rmdirs`、core `purge`、dry-run 和 max-delete。
-- 上层：bisync、VFS、mount、serve、RC、crypt 包装 remote 和离线 backend commands。
+- 上层：bisync、VFS、mount、serve、RC、crypt 包装 remote 和离线 backend commands。当前已真实完成 checksum bisync 的 resync/双向增量/check-access/max-delete/recover，以及 WebDAV 上四种 VFS cache mode 和 VFS RC；其余项目仍按测试记录中的门禁推进。
 
 CI 使用 feature golden 检查全部 rclone `fs.Features` 字段。新增方法如果导致 Copy、Purge、ListR、CleanUp、PublicLink 等接口意外变为非空，测试必须失败。RC `operations/list` 与 `operations/stat` 已和 CLI 结果做过真实 ID/MD5 对等验证。
+
+VFS 的随机写和 truncate 只以 `--vfs-cache-mode full` 作为正式支持口径。当前 WebDAV 只验证了完整 PUT，不等同于 native mount 的随机写证明；稳定门禁仍要求对应平台挂载 runner 完成真实文件描述符级测试。
