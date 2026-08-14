@@ -34,4 +34,6 @@ manifest 对文件数、目录数、单文件大小和累计 payload 实施不�
 
 2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片/秒传线型。修复后的后端已经完成 1 KiB 普通上传、秒传、0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1 边界、并发 3、100/101 项真实分页、完整下载 MD5、可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝、精确软删除、双哨兵复核、同尺寸不同内容的 `check --checksum`、core Copy/sync 回退、max-delete、bisync 双向恢复、四种 VFS cache mode 与 VFS RC、HTTP/DLNA/WebDAV/FTP/SFTP/S3/NFS serve、macOS nfsmount 随机写，以及 crypt 包装。固定上游的账号无关 operations/sync/VFS/bisync 单元契约也已真实运行通过。160 MiB+1 预申请进一步确认服务端会返回 32 MiB `SliceSize`，但本轮因不可退款 payload 配额不再重试数据上传。离线任务 live、其他平台 native mount 和专用空账号 `test_all` 仍须按门禁继续。详细记录见[真实账号测试记录](live-testing.md)。
 
+同一隔离活动还真实运行了 `lsd`、`lsf`、`lsjson`、`lsl`、`tree`、`size`、`about`、`cat`、`md5sum`、`hashsum`、`check --download`、`checksum`、`--fast-list`、`copyurl`、`rcat`、`--backup-dir`、`deletefile --dry-run` 和 core `purge`。`--copy-dest --dry-run` 稳定返回不支持且目标保持为空。
+
 在获得专用空测试账号、隔离的非零根目录和两个根外不可变 sentinel 前，稳定版发布仍保持阻断。后续真实测试必须只在随机命名的 `rclone-test-[a-z0-9]{12}` 目录中操作，并且只清理由本轮记录的 ID。

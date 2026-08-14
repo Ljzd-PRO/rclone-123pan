@@ -30,6 +30,7 @@
 | bisync | `--checksum` resync、双向增量、check-access、max-delete 阻断和 recover 已隔离实测 |
 | VFS 与 serve | 四种 cache mode、VFS RC、HTTP、DLNA、WebDAV、FTP、SFTP、S3 和 NFS 已隔离实测 |
 | 挂载与包装 | macOS `nfsmount`、full-cache 随机写/truncate 和 crypt remote 已隔离实测；其他平台 runner 待完成 |
+| rclone 命令组 | 只读/哈希/校验、copyurl、rcat、backup-dir、dry-run、max-delete 与 core purge 已隔离实测 |
 | 故障 transport、受门禁保护的 fstests、固定 rclone 契约注入 | 已实现 |
 | 隔离真实账号测试 | 0 至 48 MiB+1、并发 3、100/101 项分页、完整下载、MD5、秒传、Update、Move/DirMove、core Copy/sync、bisync、四种 VFS cache mode、RC 和精确软删除已通过 |
 | 专用空账号完整契约测试 | 阻断：尚无满足 sentinel 门禁的专用账号 |

@@ -55,8 +55,13 @@
 32. 当前定制二进制的 `nfsmount` 命令也成功挂载同一已登记目录并读取两个对象，收到中断后自动卸载；挂载表确认没有遗留挂载。该结论只适用于本轮 macOS NFS 路径，不外推到 Linux、Windows 或未编入的 FUSE mount。
 33. 临时 crypt remote 在 0600 配置中使用 obscure 密钥，把 6 字节明文写成 54 字节底层对象；crypt 视图名称和明文大小正确，完整下载一致，底层加密名称对象按精确 ID/MD5 登记。
 34. `offline-status` 与 `offline-delete` 的实现为保证分页一致性会在内存中枚举全部离线任务。为避免接触个人账号中的既有任务名称，本轮不做 live 离线任务；状态化 mock 仍覆盖 add/status/delete 生命周期、分页、未知状态和删除确认。
+35. 只读命令组 `lsd`、`lsf`、`lsjson`、`lsl`、`tree`、`size`、`about`、`cat`、`md5sum`、`hashsum`、`check --download`、`checksum` 与递归 `--fast-list` 均通过；目录计数、总字节、MD5 和完整正文分别有机器断言。
+36. `deletefile --dry-run` 明确跳过删除且对象 ID 保持不变；`--copy-dest --dry-run` 返回 fatal error，已登记空目标目录继续为空，证明不会为了兼容性虚假启用服务端 Copy。
+37. `copyurl` 从只绑定回环的本地 HTTP 源创建 4 字节对象；`rcat` 从未知大小 stdin 创建 5 字节对象。两者均按精确 ID/MD5 登记并完整下载一致。
+38. checksum sync 的 `--backup-dir` 把 4 字节旧版本以同一 ID 服务端移动到另一个已登记目录，再创建具有独立 ID 的同尺寸新版本；新旧对象分别完整下载后匹配对应本地内容。
+39. core `purge` 针对 ledger 中只含一个 4 字节文件的测试目录，先调用逐 ID Remove，再执行安全 Rmdir；文件与目录均经过 `active → trashed → missing_confirmed`，两轮完整列表确认消失。
 
-本轮累计计数为 78 次文件分配、50 个目录分配和 469,770,400 字节声明 payload，没有超过 100 文件、50 目录、单文件 160 MiB+1 和 512 MiB 硬预算。目录配额已用尽，后续上层测试只允许复用已登记的空目录，不能分配新目录。当前 `CGO_ENABLED=0` 核心二进制在 macOS 只编入 `nfsmount`，没有 `mount` 子命令；其他平台 native mount 必须使用对应平台依赖和 runner 单独验证，不能从本轮结果推断。160 MiB+1 成功闭环因本轮不可退款 payload 配额而留待下一次全新活动。
+本轮累计计数为 82 次文件分配、50 个目录分配和 469,770,417 字节声明 payload，没有超过 100 文件、50 目录、单文件 160 MiB+1 和 512 MiB 硬预算。配额不会因清理而返还；目录配额已用尽，后续上层测试只允许复用仍处于 active 的已登记空目录，不能分配新目录。当前 `CGO_ENABLED=0` 核心二进制在 macOS 只编入 `nfsmount`，没有 `mount` 子命令；其他平台 native mount 必须使用对应平台依赖和 runner 单独验证，不能从本轮结果推断。160 MiB+1 成功闭环因本轮不可退款 payload 配额而留待下一次全新活动。
 
 ## 2026-08-14 隔离冒烟测试
 

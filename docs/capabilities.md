@@ -29,6 +29,8 @@
 | `--fast-list` | 缺少 ListR 时递归调用严格 List |
 | 多线程写 | 缺少 OpenWriterAt/OpenChunkWriter 时使用后端自身有界分片 Put |
 
+core 回退已真实覆盖远端到远端 copyto、checksum sync、max-delete、backup-dir 和 purge。copyurl 与未知大小 rcat 也已分别完成小文件闭环；purge 的文件与目录均按精确 ledger ID 软删除，而不是调用服务端批量清理。
+
 ## 明确不支持
 
 | 能力 | 原因 |
@@ -50,5 +52,7 @@
 - 上层：bisync、VFS、mount、serve、RC、crypt 包装 remote 和离线 backend commands。当前已真实完成 checksum bisync 的 resync/双向增量/check-access/max-delete/recover，四种 VFS cache mode 和 VFS RC，HTTP/DLNA/WebDAV/FTP/SFTP/S3/NFS serve，macOS nfsmount 与 crypt 包装；其他平台挂载和离线任务 live 仍按门禁推进。
 
 CI 使用 feature golden 检查全部 rclone `fs.Features` 字段。新增方法如果导致 Copy、Purge、ListR、CleanUp、PublicLink 等接口意外变为非空，测试必须失败。RC `operations/list` 与 `operations/stat` 已和 CLI 结果做过真实 ID/MD5 对等验证。
+
+真实只读验收已经覆盖本节列出的全部信息类命令、`check --download`、`checksum` 和 `--fast-list`；传输与删除类命令的逐项状态以[真实账号测试记录](live-testing.md)为准。
 
 VFS 的随机写和 truncate 只以 `--vfs-cache-mode full` 作为正式支持口径。macOS 已经通过 NFS/full-cache 挂载完成真实文件描述符级的 seek、覆写和 truncate 探测；稳定门禁仍要求 Linux 与 Windows 对应 runner 独立通过，不能把 WebDAV PUT 或单平台结果外推。
