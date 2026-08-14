@@ -40,4 +40,4 @@ manifest 对文件数、目录数、单文件大小和累计 payload 实施不�
 
 同一隔离活动还真实运行了 `lsd`、`lsf`、`lsjson`、`lsl`、`tree`、`size`、`about`、`cat`、`md5sum`、`hashsum`、`check --download`、`checksum`、`--fast-list`、`copyurl`、`rcat`、`--backup-dir`、`deletefile --dry-run` 和 core `purge`。`--copy-dest --dry-run` 稳定返回不支持且目标保持为空。
 
-在获得专用空测试账号、隔离的非零根目录和两个根外不可变 sentinel 前，稳定版发布仍保持阻断。后续真实测试必须只在随机命名的 `rclone-test-[a-z0-9]{12}` 目录中操作，并且只清理由本轮记录的 ID。
+本轮两个 sentinel 位于随机 anchor 内、活动 work root 外，已用于每一层实测的前后复核；它们不等同于专用空测试账号的稳定版门禁。稳定发布仍要求在专用空账号中重新建立非零隔离根和两个 work root 外的不可变 sentinel，运行完整 `test_all`、其他平台原生挂载，并完成连续七个自然日的 1 KiB canary。后续真实测试必须只在随机命名的 `rclone-test-[a-z0-9]{12,64}` anchor 中操作，并且只清理由本轮 ledger 记录的精确 ID。

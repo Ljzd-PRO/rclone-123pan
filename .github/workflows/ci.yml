@@ -1,4 +1,4 @@
-name: CI
+name: 持续集成
 
 on:
   push:
@@ -20,11 +20,11 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go test -race ./...
-      - name: Fuzz strict response envelopes
+      - name: 模糊测试严格响应 envelope
         run: go test ./backend/pan123 -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=5s
-      - name: Fuzz upload part planning
+      - name: 模糊测试上传分片规划
         run: go test ./backend/pan123 -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=5s
-      - name: Fixed-version lint
+      - name: 固定版本静态检查
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.4.0
@@ -62,7 +62,7 @@ jobs:
         with:
           go-version: 1.25.0
           cache: true
-      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+      - name: 构建 ${{ matrix.goos }}/${{ matrix.goarch }}
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}

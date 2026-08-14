@@ -1,10 +1,10 @@
-name: Internal alpha artifacts
+name: 内部 alpha 工件
 
 on:
   workflow_dispatch:
     inputs:
       plugin_version:
-        description: Internal alpha version (without rclone pin)
+        description: 内部 alpha 版本（不含 rclone 固定版本）
         required: true
         default: 0.1.0-alpha.1
 
@@ -22,13 +22,13 @@ jobs:
         with:
           go-version: 1.25.0
           cache: true
-      - name: Build reproducible internal alpha set
+      - name: 构建可复现的内部 alpha 工件
         env:
           PLUGIN_VERSION: ${{ inputs.plugin_version }}
         run: ./tools/build-alpha.sh
-      - name: Verify checksums
+      - name: 验证校验和
         run: cd dist && sha256sum -c SHA256SUMS
-      - name: Upload private workflow artifact
+      - name: 上传私有工作流工件
         uses: actions/upload-artifact@v4
         with:
           name: rclone-123pan_${{ inputs.plugin_version }}_rclone-v1.75.0

@@ -18,3 +18,8 @@
 - 修复 rooted rclone Fs 的父路径复核基准和 Update 特殊名称二次编码；真实通过可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝及由内向外安全清理。
 - 真实通过 48 MiB+1 四分片并发 3 上传和完整下载；160 MiB+1 预申请确认服务端动态返回 32 MiB `SliceSize`，生产实现只接受实测的 16/32 MiB 两档，其他值在数据 PUT 前失败关闭。
 - 给真实测试 ledger 增加原子批量配额预留和受前缀/直系路径/精确数量约束的 `lsjson` 导入；真实验证两次 100 项与两次 101 项完整列表分别一致，跨页无遗漏或重复。
+- 将固定 rclone 的树外契约注入从编译检查升级为实际运行 operations、sync、VFS 与 bisync 的账号无关测试；真实验证 core Copy/sync/purge、max-delete、backup-dir、copyurl 和未知大小 rcat。
+- 真实验证 checksum bisync 的 resync、双向增量、check-access、max-delete 阻断与 recover，以及四种 VFS cache mode 和 VFS RC。
+- 真实验证 HTTP、DLNA、WebDAV、FTP、SFTP、S3、NFS serve，macOS nfsmount/full-cache 随机写与 truncate，以及 crypt 包装 remote；离线任务 live 因会枚举个人账号既有任务而有意阻断。
+- 增加 408/429/503 故障矩阵、10,000 组上传规划模型、250 步移动模型、两个 fuzz 入口、100 次取消资源回收，以及真实流过 1 GiB mock 数据面的有界内存测试。
+- 五个核心目标固定使用 `noselfupdate`、`CGO_ENABLED=0`、`-trimpath` 与确定性归档；生成 CycloneDX SBOM、来源记录和 SHA-256 校验值。其他平台原生挂载、七日 canary、专用空账号契约和许可审查仍阻断稳定版。
