@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -102,6 +103,15 @@ type UploadAllocation struct {
 	Name     string `json:"name"`
 	Size     int64  `json:"size"`
 	MD5      string `json:"md5"`
+}
+
+type rcloneListEntry struct {
+	Path   string            `json:"Path"`
+	Name   string            `json:"Name"`
+	Size   int64             `json:"Size"`
+	IsDir  bool              `json:"IsDir"`
+	Hashes map[string]string `json:"Hashes"`
+	ID     string            `json:"ID"`
 }
 
 // Manifest authorizes exactly one isolated live-test campaign.
@@ -257,8 +267,17 @@ func (m *Manifest) Validate() error {
 		}
 		seen[upload.ID] = "unresolved upload"
 	}
-	if m.Usage.Files < len(m.Sentinels) {
-		return errors.New("文件配额计数未包含两个 sentinel")
+	recordedFiles := len(m.Sentinels) + len(m.UnresolvedUploads)
+	recordedDirectories := 0
+	for _, object := range m.Objects {
+		if object.Kind == KindDirectory {
+			recordedDirectories++
+		} else {
+			recordedFiles++
+		}
+	}
+	if m.Usage.Files < recordedFiles || m.Usage.Directories < recordedDirectories {
+		return errors.New("恢复记录中的文件或目录数量超过已预留配额")
 	}
 	return nil
 }
@@ -336,6 +355,93 @@ func (m *Manifest) RecordUnresolvedUpload(upload UploadAllocation) error {
 	}
 	m.UnresolvedUploads = append(m.UnresolvedUploads, upload)
 	return nil
+}
+
+// ImportRcloneList imports only new, direct children from a complete lsjson
+// array. A caller-provided random prefix and exact expected count prevent a
+// broad account listing from being turned into deletion authority.
+func (m *Manifest) ImportRcloneList(reader io.Reader, parentID int64, prefix string, expectedNew int) error {
+	if parentID != m.WorkRootID || prefix == "" || strings.ContainsAny(prefix, "/\x00") || expectedNew < 0 {
+		return errors.New("lsjson 导入范围无效")
+	}
+	decoder := json.NewDecoder(io.LimitReader(reader, 16*Mebi))
+	var entries []rcloneListEntry
+	if err := decoder.Decode(&entries); err != nil {
+		return fmt.Errorf("解析 lsjson: %w", err)
+	}
+	if decoder.Decode(&struct{}{}) != io.EOF {
+		return errors.New("lsjson 含有多余 JSON")
+	}
+	existing := make(map[int64]struct{}, len(m.Objects)+len(m.Sentinels)+len(m.UnresolvedUploads))
+	knownObjects := make(map[int64]Object, len(m.Objects))
+	for _, sentinel := range m.Sentinels {
+		existing[sentinel.ID] = struct{}{}
+	}
+	for _, object := range m.Objects {
+		existing[object.ID] = struct{}{}
+		knownObjects[object.ID] = object
+	}
+	for _, upload := range m.UnresolvedUploads {
+		existing[upload.ID] = struct{}{}
+	}
+	seenInput := make(map[int64]struct{}, len(entries))
+	seenNames := make(map[string]int64, len(entries))
+	newObjects := make([]Object, 0, expectedNew)
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name, prefix) {
+			continue
+		}
+		if entry.Path != entry.Name || !validImportName(entry.Name) {
+			return fmt.Errorf("lsjson 条目 %q 不是安全的直系子项", entry.Name)
+		}
+		id, err := strconv.ParseInt(entry.ID, 10, 64)
+		if err != nil || id <= 0 {
+			return fmt.Errorf("lsjson 条目 %q 的 ID 无效", entry.Name)
+		}
+		if _, duplicate := seenInput[id]; duplicate {
+			return fmt.Errorf("lsjson 重复对象 ID %d", id)
+		}
+		seenInput[id] = struct{}{}
+		if otherID, duplicate := seenNames[entry.Name]; duplicate && otherID != id {
+			return fmt.Errorf("lsjson 名称 %q 在 ID %d 和 %d 之间歧义", entry.Name, otherID, id)
+		}
+		seenNames[entry.Name] = id
+		if _, known := existing[id]; known {
+			knownObject, isObject := knownObjects[id]
+			kindMatches := isObject && ((entry.IsDir && knownObject.Kind == KindDirectory) || (!entry.IsDir && knownObject.Kind == KindFile))
+			sizeMatches := entry.IsDir || knownObject.Size == entry.Size
+			hashMatches := entry.IsDir || normalizeMD5(knownObject.MD5) == normalizeMD5(entry.Hashes["md5"])
+			if !kindMatches || knownObject.ParentID != parentID || knownObject.Name != entry.Name || !sizeMatches || !hashMatches {
+				return fmt.Errorf("已记录对象 ID %d 的 lsjson 身份发生变化", id)
+			}
+			continue
+		}
+		object := Object{ID: id, ParentID: parentID, Name: entry.Name, Size: entry.Size, MD5: entry.Hashes["md5"]}
+		if entry.IsDir {
+			object.Kind = KindDirectory
+			object.Size = 0
+			object.MD5 = ""
+		} else {
+			object.Kind = KindFile
+		}
+		if err := validateObject(object, !entry.IsDir); err != nil {
+			return err
+		}
+		newObjects = append(newObjects, object)
+	}
+	if len(newObjects) != expectedNew {
+		return fmt.Errorf("lsjson 新增前缀对象 %d 个，不是预期的 %d 个", len(newObjects), expectedNew)
+	}
+	for _, object := range newObjects {
+		if err := m.RecordObject(object); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validImportName(name string) bool {
+	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, "/\x00")
 }
 
 // MarkCleanup advances one ledger object to a stronger cleanup proof. States

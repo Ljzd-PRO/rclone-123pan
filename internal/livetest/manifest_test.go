@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -126,6 +127,9 @@ func TestRelocateObjectPreservesIdentityAndRejectsCleanedObject(t *testing.T) {
 
 func TestUnresolvedUploadIsRecoveryOnly(t *testing.T) {
 	manifest := validManifest()
+	if err := manifest.ReserveFile(1); err != nil {
+		t.Fatal(err)
+	}
 	upload := UploadAllocation{ID: 31, ParentID: 11, Name: "unresolved", Size: 1, MD5: digest("x")}
 	if err := manifest.RecordUnresolvedUpload(upload); err != nil {
 		t.Fatal(err)
@@ -138,6 +142,34 @@ func TestUnresolvedUploadIsRecoveryOnly(t *testing.T) {
 	}
 	if err := manifest.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestImportRcloneListRequiresExactPrefixedDirectChildren(t *testing.T) {
+	manifest := validManifest()
+	if err := manifest.ReserveFile(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.ReserveDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	body := `[
+		{"Path":"page-f-01","Name":"page-f-01","Size":1,"IsDir":false,"Hashes":{"md5":"9dd4e461268c8034f5c8564e155c67a6"},"ID":"31"},
+		{"Path":"page-d-01","Name":"page-d-01","Size":-1,"IsDir":true,"ID":"32"},
+		{"Path":"unrelated","Name":"unrelated","Size":1,"IsDir":false,"ID":"33"}
+	]`
+	if err := manifest.ImportRcloneList(strings.NewReader(body), manifest.WorkRootID, "page-", 2); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Objects) != 2 || manifest.Objects[1].Kind != KindDirectory || manifest.Objects[1].Size != 0 {
+		t.Fatalf("unexpected imported objects %#v", manifest.Objects)
+	}
+	if err := manifest.ImportRcloneList(strings.NewReader(body), manifest.WorkRootID, "page-", 0); err != nil {
+		t.Fatal(err)
+	}
+	bad := `[{"Path":"sub/page-f-02","Name":"page-f-02","Size":1,"IsDir":false,"Hashes":{"md5":"9dd4e461268c8034f5c8564e155c67a6"},"ID":"34"}]`
+	if err := manifest.ImportRcloneList(strings.NewReader(bad), manifest.WorkRootID, "page-", 1); err == nil {
+		t.Fatal("导入了非直系子项")
 	}
 }
 

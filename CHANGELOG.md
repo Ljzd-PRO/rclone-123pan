@@ -17,3 +17,4 @@
 - 真实验证 16 MiB+1 完整下载、前缀 Range、Seek、suffix-range 和路径大小写敏感行为。
 - 修复 rooted rclone Fs 的父路径复核基准和 Update 特殊名称二次编码；真实通过可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝及由内向外安全清理。
 - 真实通过 48 MiB+1 四分片并发 3 上传和完整下载；160 MiB+1 预申请确认服务端动态返回 32 MiB `SliceSize`，生产实现只接受实测的 16/32 MiB 两档，其他值在数据 PUT 前失败关闭。
+- 给真实测试 ledger 增加原子批量配额预留和受前缀/直系路径/精确数量约束的 `lsjson` 导入；真实验证两次 100 项与两次 101 项完整列表分别一致，跨页无遗漏或重复。

@@ -26,10 +26,10 @@ manifest 对文件数、目录数、单文件大小和累计 payload 实施不�
 
 `tools/test-rclone-contract.sh` 会克隆 commit `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`，向 `backend/all` 添加仅测试使用的 blank import，并使用本地 module replace。无需账号的 CI 会编译固定上游的 `fs/operations`、`fs/sync`、`vfs` 和 `cmd/bisync` 包；提供同样的真实测试门禁后，则会通过仓库中的定制 `test_all` YAML 运行这些测试套件。没有配置任何 ignore 列表。
 
-任何真实测试开始前，操作人员还必须核验两个不可变 sentinel，只创建一个全新的 `rclone-test-[a-z0-9]{12,64}` anchor，记录所有新建 ID，并且只清理本轮记录的 ID。当前授权活动的硬上限为 100 个文件、50 个目录、单文件 160 MiB+1 和累计上传 payload 512 MiB。真实分页测试使用 53 个极小文件和 48 个目录形成 101 个可见条目；更大的分页、1 GiB 流式和 10,000 分片边界只在 mock 中验证。
+任何真实测试开始前，操作人员还必须核验两个不可变 sentinel，只创建一个全新的 `rclone-test-[a-z0-9]{12,64}` anchor，记录所有新建 ID，并且只清理本轮记录的 ID。当前授权活动的硬上限为 100 个文件、50 个目录、单文件 160 MiB+1 和累计上传 payload 512 MiB。当前真实分页测试在已有 10 个可见测试文件的基础上，使用 45 个 1 字节文件和 46 个空目录形成 101 个可见条目；两次 100 项列表和两次 101 项列表分别完全一致。更大的分页、1 GiB 流式和 10,000 分片边界只在 mock 中验证。
 
 手动触发的内部 alpha 工作流通过 `tools/build-alpha.sh`，使用 Go 1.25.0、`CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false` 和强制 `noselfupdate` 交叉编译五个支持目标。脚本会把归档文件的所有者和时间戳统一为源码 commit，移除 gzip/zip 元数据，生成确定性的 CycloneDX 1.6 module SBOM 与来源记录，并校验 `SHA256SUMS`。artifact 保持私有且七天后过期；工作流没有 release 或 package 写权限。
 
-2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片/秒传线型。修复后的后端已经完成 1 KiB 普通上传、秒传、0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1 边界、并发 3、完整下载 MD5、可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝、精确软删除、双哨兵复核，以及同尺寸不同内容的 `check --checksum` 只读回归。160 MiB+1 预申请进一步确认服务端会返回 32 MiB `SliceSize`，但本轮因不可退款 payload 配额不再重试数据上传。101 项分页、离线任务、mount 和完整 rclone 契约测试仍须按门禁继续。详细记录见[真实账号测试记录](live-testing.md)。
+2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片/秒传线型。修复后的后端已经完成 1 KiB 普通上传、秒传、0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1 边界、并发 3、100/101 项真实分页、完整下载 MD5、可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝、精确软删除、双哨兵复核，以及同尺寸不同内容的 `check --checksum` 只读回归。160 MiB+1 预申请进一步确认服务端会返回 32 MiB `SliceSize`，但本轮因不可退款 payload 配额不再重试数据上传。离线任务、mount 和完整 rclone 契约测试仍须按门禁继续。详细记录见[真实账号测试记录](live-testing.md)。
 
 在获得专用空测试账号、隔离的非零根目录和两个根外不可变 sentinel 前，稳定版发布仍保持阻断。后续真实测试必须只在随机命名的 `rclone-test-[a-z0-9]{12}` 目录中操作，并且只清理由本轮记录的 ID。

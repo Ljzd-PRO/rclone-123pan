@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -15,7 +16,8 @@ func main() {
 	path := flag.String("file", "", "live manifest JSON 路径")
 	root := flag.String("root-id", "", "预期的非零 work root ID")
 	mode := flag.String("mode", "", "预期模式：isolated 或 dedicated-contract")
-	action := flag.String("action", "validate", "操作：validate、reserve-file、reserve-directory、record、record-unresolved、relocate 或 mark")
+	action := flag.String("action", "validate", "操作：validate、reserve-file、reserve-directory、record、record-unresolved、import-list、relocate 或 mark")
+	count := flag.Int("count", 1, "reserve 操作的原子预留次数")
 	kind := flag.String("kind", "", "record 的对象类型：file 或 directory")
 	id := flag.Int64("id", 0, "record/mark 的正整数对象 ID")
 	parentID := flag.Int64("parent-id", 0, "record 的正整数 parent ID")
@@ -23,6 +25,9 @@ func main() {
 	size := flag.Int64("size", -1, "reserve-file/record 的对象大小")
 	md5 := flag.String("md5", "", "record 文件的 MD5")
 	state := flag.String("state", "", "mark 的状态：trashed 或 missing_confirmed")
+	listFile := flag.String("list-file", "", "import-list 使用的完整 lsjson 文件")
+	prefix := flag.String("name-prefix", "", "import-list 只接受的随机名称前缀")
+	expected := flag.Int("expected", -1, "import-list 预期新增的精确对象数")
 	flag.Parse()
 	if *path == "" || *root == "" || *mode == "" {
 		fmt.Fprintln(os.Stderr, "必须提供 -file、-root-id 和 -mode")
@@ -50,15 +55,27 @@ func main() {
 	switch *action {
 	case "validate":
 	case "reserve-file":
-		if err := manifest.ReserveFile(*size); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+		if *count <= 0 {
+			fmt.Fprintln(os.Stderr, "reserve count 必须为正整数")
+			os.Exit(2)
+		}
+		for range *count {
+			if err := manifest.ReserveFile(*size); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 		}
 		save = true
 	case "reserve-directory":
-		if err := manifest.ReserveDirectory(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+		if *count <= 0 {
+			fmt.Fprintln(os.Stderr, "reserve count 必须为正整数")
+			os.Exit(2)
+		}
+		for range *count {
+			if err := manifest.ReserveDirectory(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
 		}
 		save = true
 	case "record":
@@ -79,6 +96,19 @@ func main() {
 		upload := livetest.UploadAllocation{ID: *id, ParentID: *parentID, Name: *name, Size: *size, MD5: *md5}
 		if err := manifest.RecordUnresolvedUpload(upload); err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		save = true
+	case "import-list":
+		input, err := os.Open(*listFile)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		importErr := manifest.ImportRcloneList(input, rootID, *prefix, *expected)
+		closeErr := input.Close()
+		if importErr != nil || closeErr != nil {
+			fmt.Fprintln(os.Stderr, errors.Join(importErr, closeErr))
 			os.Exit(1)
 		}
 		save = true
