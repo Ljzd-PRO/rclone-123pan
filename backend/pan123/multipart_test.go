@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +60,67 @@ func TestUploadPartPlanBoundaries(t *testing.T) {
 	if err != nil || parts != 11 || len(uploadBatches(parts)) != 2 {
 		t.Fatalf("32 MiB second batch planned parts=%d batches=%d err=%v", parts, len(uploadBatches(parts)), err)
 	}
+}
+
+func TestUploadPartPlanRandomModel(t *testing.T) {
+	random := rand.New(rand.NewSource(123))
+	for range 10_000 {
+		chunkSize := uploadChunkSize
+		if random.Intn(2) == 1 {
+			chunkSize = largeUploadChunkSize
+		}
+		size := random.Int63n(maxUploadParts * chunkSize)
+		parts, err := uploadPartCount(size, chunkSize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := max(int64(1), (size+chunkSize-1)/chunkSize)
+		if parts != want {
+			t.Fatalf("size=%d chunk=%d parts=%d want=%d", size, chunkSize, parts, want)
+		}
+		next := int64(1)
+		for _, batch := range uploadBatches(parts) {
+			if batch.start != next || batch.end < batch.start || batch.end-batch.start+1 > uploadBatchSize {
+				t.Fatalf("非法 batch: parts=%d batch=%#v next=%d", parts, batch, next)
+			}
+			next = batch.end + 1
+		}
+		if next != parts+1 {
+			t.Fatalf("batch 未完整覆盖：parts=%d next=%d", parts, next)
+		}
+	}
+}
+
+func FuzzUploadPartCount(f *testing.F) {
+	for _, size := range []uint64{0, 1, uint64(uploadChunkSize - 1), uint64(uploadChunkSize), uint64(maxUploadParts * largeUploadChunkSize), math.MaxInt64} {
+		f.Add(size, false)
+		f.Add(size, true)
+	}
+	f.Fuzz(func(t *testing.T, raw uint64, large bool) {
+		if raw > math.MaxInt64 {
+			return
+		}
+		size := int64(raw)
+		chunkSize := uploadChunkSize
+		if large {
+			chunkSize = largeUploadChunkSize
+		}
+		parts, err := uploadPartCount(size, chunkSize)
+		want := size / chunkSize
+		if size%chunkSize != 0 {
+			want++
+		}
+		want = max(int64(1), want)
+		if want > maxUploadParts {
+			if err == nil {
+				t.Fatalf("接受了 %d 个分片", want)
+			}
+			return
+		}
+		if err != nil || parts != want {
+			t.Fatalf("size=%d chunk=%d parts=%d want=%d err=%v", size, chunkSize, parts, want, err)
+		}
+	})
 }
 
 func testPresignedUpload() api.UploadData {
@@ -247,6 +310,144 @@ func TestPresignedReadsNoMoreThanActivePayloads(t *testing.T) {
 	}
 	if got := h.maxActive.Load(); got != 2 {
 		t.Fatalf("maximum active data PUTs = %d, want 2", got)
+	}
+}
+
+func TestPresignedCancellationReleasesWorkers(t *testing.T) {
+	baseline := runtime.NumGoroutine()
+	h := &presignedHarness{t: t, parts: make(map[int64][]byte)}
+	f := newPresignedTestFs(t, h)
+	for iteration := range 100 {
+		started := make(chan struct{}, 1)
+		f.downloadClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			started <- struct{}{}
+			<-request.Context().Done()
+			return nil, request.Context().Err()
+		})}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() {
+			digest := md5.Sum([]byte("x"))
+			_, err := f.uploadPresigned(ctx, testPresignedUpload(), &preparedSource{
+				reader: strings.NewReader("x"), size: 1, md5: hex.EncodeToString(digest[:]),
+			})
+			done <- err
+		}()
+		select {
+		case <-started:
+			cancel()
+		case <-time.After(time.Second):
+			cancel()
+			t.Fatalf("第 %d 次取消未启动数据 PUT", iteration)
+		}
+		select {
+		case err := <-done:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("第 %d 次取消返回 %v", iteration, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("第 %d 次取消未解除 worker", iteration)
+		}
+	}
+	if h.complete.Load() != 0 {
+		t.Fatalf("取消后调用了 complete %d 次", h.complete.Load())
+	}
+	runtime.GC()
+	time.Sleep(20 * time.Millisecond)
+	if got := runtime.NumGoroutine(); got > baseline+16 {
+		t.Fatalf("100 次取消后 goroutine=%d，基线=%d", got, baseline)
+	}
+}
+
+type infiniteZeroReader struct{}
+
+func (infiniteZeroReader) Read(buffer []byte) (int, error) {
+	clear(buffer)
+	return len(buffer), nil
+}
+
+func md5OfZeros(size int64) string {
+	hasher := md5.New()
+	block := make([]byte, 1<<20)
+	for remaining := size; remaining > 0; {
+		count := min(int64(len(block)), remaining)
+		_, _ = hasher.Write(block[:count])
+		remaining -= count
+	}
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func TestOneGiBMockUploadIsStreaming(t *testing.T) {
+	if testing.Short() {
+		t.Skip("跳过 1 GiB mock 流式门禁")
+	}
+	if raceDetectorEnabled {
+		t.Skip("race instrumentation 下跳过 1 GiB 峰值门禁；普通测试会执行")
+	}
+	const size = int64(1 << 30)
+	sum := md5OfZeros(size)
+	h := &presignedHarness{
+		t: t, parts: make(map[int64][]byte),
+		completeFile: &api.File{FileID: 7, Size: size, ETag: sum},
+	}
+	f := newPresignedTestFs(t, h)
+	f.opt.UploadConcurrency = 3
+	var uploaded atomic.Int64
+	var active atomic.Int64
+	var maxActive atomic.Int64
+	f.downloadClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		current := active.Add(1)
+		defer active.Add(-1)
+		for previous := maxActive.Load(); current > previous && !maxActive.CompareAndSwap(previous, current); previous = maxActive.Load() {
+		}
+		count, err := io.Copy(io.Discard, request.Body)
+		if err != nil {
+			return nil, err
+		}
+		uploaded.Add(count)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("")),
+			Request:    request,
+		}, nil
+	})}
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	var peak atomic.Uint64
+	peak.Store(before.HeapAlloc)
+	monitorDone := make(chan struct{})
+	monitorStopped := make(chan struct{})
+	go func() {
+		defer close(monitorStopped)
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-monitorDone:
+				return
+			case <-ticker.C:
+				var current runtime.MemStats
+				runtime.ReadMemStats(&current)
+				for previous := peak.Load(); current.HeapAlloc > previous && !peak.CompareAndSwap(previous, current.HeapAlloc); previous = peak.Load() {
+				}
+			}
+		}
+	}()
+	_, err := f.uploadPresigned(context.Background(), testPresignedUpload(), &preparedSource{
+		reader: io.LimitReader(infiniteZeroReader{}, size), size: size, md5: sum,
+	})
+	close(monitorDone)
+	<-monitorStopped
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uploaded.Load() != size || h.complete.Load() != 1 || maxActive.Load() > 3 {
+		t.Fatalf("uploaded=%d complete=%d maxActive=%d", uploaded.Load(), h.complete.Load(), maxActive.Load())
+	}
+	if growth := peak.Load() - before.HeapAlloc; growth > 256<<20 {
+		t.Fatalf("1 GiB mock 上传 heap 峰值增长 %d，超过 256 MiB 门禁", growth)
 	}
 }
 

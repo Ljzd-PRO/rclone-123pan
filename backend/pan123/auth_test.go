@@ -194,6 +194,29 @@ func TestNonIdempotentRequestIsNotBlindlyRetried(t *testing.T) {
 	}
 }
 
+func TestIdempotentRequestRetriesTransientHTTPStatuses(t *testing.T) {
+	for _, status := range []int{http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			var calls atomic.Int64
+			client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if calls.Add(1) == 1 {
+					w.WriteHeader(status)
+					writeEnvelope(t, w, status, nil)
+					return
+				}
+				writeEnvelope(t, w, 0, map[string]any{"UID": 42})
+			}), "person@example.com", "token")
+			var user api.UserInfoData
+			if err := client.do(context.Background(), http.MethodGet, api.UserInfoPath, nil, &user); err != nil {
+				t.Fatal(err)
+			}
+			if calls.Load() != 2 {
+				t.Fatalf("HTTP %d 后调用次数 = %d，预期 2", status, calls.Load())
+			}
+		})
+	}
+}
+
 func TestParseRetryAfter(t *testing.T) {
 	if got := parseRetryAfter("17"); got != 17*time.Second {
 		t.Fatalf("seconds Retry-After parsed as %v", got)

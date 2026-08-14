@@ -3,6 +3,8 @@ package pan123
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"sort"
 	"strconv"
@@ -319,6 +321,43 @@ func TestMoveParentAndNameByID(t *testing.T) {
 	node, found := store.get(1)
 	if !found || node.parent != 10 || node.file.FileName != "renamed" || moved.Remote() != "dir/renamed" {
 		t.Fatalf("unexpected moved node=%#v object=%#v", node, moved)
+	}
+}
+
+func TestMoveModelRandomSequence(t *testing.T) {
+	store := newMutationStore(t)
+	f := newMutationFs(t, store)
+	current := fs.Object(newObject(f, "file", 0, api.File{
+		FileName: "file", FileID: 1, Size: 1, ETag: "9dd4e461268c8034f5c8564e155c67a6",
+	}))
+	random := rand.New(rand.NewSource(123))
+	for step := range 250 {
+		name := fmt.Sprintf("model-%03d", step)
+		parent := int64(0)
+		remote := name
+		if random.Intn(2) == 1 {
+			parent = 10
+			remote = "dir/" + name
+		}
+		moved, err := f.Move(context.Background(), current, remote)
+		if err != nil {
+			t.Fatalf("step %d: %v", step, err)
+		}
+		current = moved
+		node, found := store.get(1)
+		ider, hasID := moved.(fs.IDer)
+		if !found || !hasID || node.parent != parent || node.file.FileName != name || ider.ID() != "1" || moved.Remote() != remote {
+			t.Fatalf("step %d: node=%#v found=%t hasID=%t remote=%q", step, node, found, hasID, moved.Remote())
+		}
+	}
+	if err := current.Remove(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := store.get(1); found {
+		t.Fatal("模型末尾 Remove 后对象仍存在")
+	}
+	if err := current.Remove(context.Background()); err != nil {
+		t.Fatalf("模型末尾幂等 Remove: %v", err)
 	}
 }
 
