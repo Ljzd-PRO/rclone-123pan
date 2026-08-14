@@ -24,11 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: 1.25.0
           cache: true
@@ -61,7 +61,7 @@ jobs:
       - name: 验证校验和
         run: cd dist && sha256sum -c SHA256SUMS
       - name: 上传工作流工件
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rclone-123pan_${{ steps.version.outputs.version }}_rclone-v1.75.0
           path: dist/
