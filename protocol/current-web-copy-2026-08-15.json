@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "observation": {
+    "date": "2026-08-15",
+    "source": "123 网盘官方 Web 页面公开发布的生产 JavaScript",
+    "page": "https://yun.123pan.cn/",
+    "asset": "https://statics.123pan.com/123pan-resources/prod/dist/app.57b4fd93b78bc29edc71.1786322789.js",
+    "asset_sha256": "9ca4b46451ea9b14c2dbcead3544168a5cafbdfea37b0d1b366fee1b04482ddd",
+    "raw_asset_persisted": false,
+    "sanitized": true
+  },
+  "start": {
+    "method": "POST",
+    "path": "/b/api/restful/goapi/v1/file/copy/async",
+    "body": {
+      "fileList": [
+        {
+          "fileId": "<positive-json-number>",
+          "size": "<non-negative-json-number>",
+          "etag": "<md5>",
+          "type": 0,
+          "parentFileId": "<non-negative-json-number>",
+          "fileName": "<server-file-name>",
+          "driveId": 0
+        }
+      ],
+      "targetFileId": "<non-negative-json-number>"
+    },
+    "response": {
+      "immediate_success": {
+        "mode": 2
+      },
+      "asynchronous": {
+        "mode": "<value-other-than-2>",
+        "taskId": "<positive-json-number>"
+      }
+    }
+  },
+  "task": {
+    "method": "GET",
+    "path": "/b/api/restful/goapi/v1/file/copy/task?taskId=<positive-json-number>",
+    "poll_interval_milliseconds": 1000,
+    "status": {
+      "0": "继续轮询",
+      "1": "继续轮询",
+      "2": "成功",
+      "other": "以 reason 作为失败原因"
+    }
+  },
+  "web_ui_constraints": {
+    "destination_is_directory_id": true,
+    "destination_name_field_present": false,
+    "source_name_is_preserved": true,
+    "same_source_parent_rejected_by_ui": true
+  },
+  "backend_safety_profile": {
+    "copy_one_file_per_request": true,
+    "success_requires_final_id_parent_name_size_md5_verification": true,
+    "ambiguous_start_is_not_replayed": true,
+    "file_body_transfer_required": false
+  }
+}
