@@ -15,7 +15,7 @@ func main() {
 	path := flag.String("file", "", "live manifest JSON 路径")
 	root := flag.String("root-id", "", "预期的非零 work root ID")
 	mode := flag.String("mode", "", "预期模式：isolated 或 dedicated-contract")
-	action := flag.String("action", "validate", "操作：validate、reserve-file、reserve-directory、record、relocate 或 mark")
+	action := flag.String("action", "validate", "操作：validate、reserve-file、reserve-directory、record、record-unresolved、relocate 或 mark")
 	kind := flag.String("kind", "", "record 的对象类型：file 或 directory")
 	id := flag.Int64("id", 0, "record/mark 的正整数对象 ID")
 	parentID := flag.Int64("parent-id", 0, "record 的正整数 parent ID")
@@ -71,6 +71,13 @@ func main() {
 			MD5:      *md5,
 		}
 		if err := manifest.RecordObject(object); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		save = true
+	case "record-unresolved":
+		upload := livetest.UploadAllocation{ID: *id, ParentID: *parentID, Name: *name, Size: *size, MD5: *md5}
+		if err := manifest.RecordUnresolvedUpload(upload); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

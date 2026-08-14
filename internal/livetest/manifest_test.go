@@ -124,6 +124,23 @@ func TestRelocateObjectPreservesIdentityAndRejectsCleanedObject(t *testing.T) {
 	}
 }
 
+func TestUnresolvedUploadIsRecoveryOnly(t *testing.T) {
+	manifest := validManifest()
+	upload := UploadAllocation{ID: 31, ParentID: 11, Name: "unresolved", Size: 1, MD5: digest("x")}
+	if err := manifest.RecordUnresolvedUpload(upload); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.MarkCleanup(upload.ID, CleanupTrashed); err == nil {
+		t.Fatal("未解析上传被当作可自动删除对象")
+	}
+	if err := manifest.RecordObject(Object{Kind: KindFile, ID: upload.ID, ParentID: 11, Name: "visible", Size: 1, MD5: digest("x")}); err == nil {
+		t.Fatal("未解析上传 ID 被重复登记为可见对象")
+	}
+	if err := manifest.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestManifestRejectsCleanedSentinel(t *testing.T) {
 	manifest := validManifest()
 	manifest.Sentinels[0].Cleanup = CleanupMissingConfirmed

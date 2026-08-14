@@ -126,8 +126,8 @@ func validateUploadDataProfile(upload api.UploadData) error {
 		if upload.Bucket == "" || upload.StorageNode == "" || upload.UploadID == "" {
 			return errorsNewProtocol("presigned upload response is missing required context")
 		}
-		if upload.SliceSize != strconv.FormatInt(uploadChunkSize, 10) {
-			return errorsNewProtocol("presigned upload response has an unsupported SliceSize")
+		if _, err := presignedChunkSize(upload); err != nil {
+			return err
 		}
 	case 3:
 		if upload.Bucket == "" || upload.EndPoint == "" {
@@ -137,6 +137,14 @@ func validateUploadDataProfile(upload api.UploadData) error {
 		return errorsNewProtocol("upload response contains partial temporary S3 credentials")
 	}
 	return nil
+}
+
+func presignedChunkSize(upload api.UploadData) (int64, error) {
+	size, err := strconv.ParseInt(upload.SliceSize, 10, 64)
+	if err != nil || (size != uploadChunkSize && size != largeUploadChunkSize) {
+		return 0, errorsNewProtocol(fmt.Sprintf("presigned upload response has unsupported SliceSize %q", upload.SliceSize))
+	}
+	return size, nil
 }
 
 func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, source *preparedSource) (api.UploadData, error) {
@@ -170,7 +178,7 @@ func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, sou
 	}
 	if !upload.Reuse {
 		if err := validateUploadDataProfile(upload); err != nil {
-			return api.UploadData{}, err
+			return api.UploadData{}, fmt.Errorf("upload request file ID %d: %w", upload.FileID, err)
 		}
 	}
 	return upload, nil

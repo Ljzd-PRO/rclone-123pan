@@ -246,6 +246,12 @@ func TestUploadRequestRejectsIncompleteProfiles(t *testing.T) {
 			if err == nil {
 				t.Fatal("accepted incomplete upload profile")
 			}
+			if !strings.Contains(err.Error(), "file ID 9") {
+				t.Fatalf("error omitted recovery file ID: %v", err)
+			}
+			if tc.name == "presigned wrong slice size" && !strings.Contains(err.Error(), `SliceSize "1"`) {
+				t.Fatalf("error omitted non-secret SliceSize: %v", err)
+			}
 		})
 	}
 }

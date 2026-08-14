@@ -93,19 +93,31 @@ type Object struct {
 	Cleanup  CleanupState `json:"cleanup,omitempty"`
 }
 
+// UploadAllocation records a known provider-side ID which never became a
+// verified visible object. It is recovery evidence only and is deliberately
+// ineligible for automatic deletion.
+type UploadAllocation struct {
+	ID       int64  `json:"id"`
+	ParentID int64  `json:"parent_id"`
+	Name     string `json:"name"`
+	Size     int64  `json:"size"`
+	MD5      string `json:"md5"`
+}
+
 // Manifest authorizes exactly one isolated live-test campaign.
 type Manifest struct {
-	Version      int      `json:"version"`
-	Mode         Mode     `json:"mode"`
-	Session      string   `json:"session"`
-	UID          int64    `json:"uid"`
-	AnchorID     int64    `json:"anchor_id"`
-	WorkRootID   int64    `json:"work_root_id"`
-	AnchorRemote string   `json:"anchor_remote"`
-	Limits       Limits   `json:"limits"`
-	Usage        Usage    `json:"usage"`
-	Sentinels    []Object `json:"sentinels"`
-	Objects      []Object `json:"objects"`
+	Version           int                `json:"version"`
+	Mode              Mode               `json:"mode"`
+	Session           string             `json:"session"`
+	UID               int64              `json:"uid"`
+	AnchorID          int64              `json:"anchor_id"`
+	WorkRootID        int64              `json:"work_root_id"`
+	AnchorRemote      string             `json:"anchor_remote"`
+	Limits            Limits             `json:"limits"`
+	Usage             Usage              `json:"usage"`
+	Sentinels         []Object           `json:"sentinels"`
+	Objects           []Object           `json:"objects"`
+	UnresolvedUploads []UploadAllocation `json:"unresolved_uploads,omitempty"`
 }
 
 // NewManifest creates an empty manifest. The caller must add exactly two
@@ -160,6 +172,19 @@ func validateObject(object Object, requireFileHash bool) error {
 	case "", CleanupActive, CleanupTrashed, CleanupMissingConfirmed:
 	default:
 		return fmt.Errorf("对象 ID %d 的清理状态 %q 无效", object.ID, object.Cleanup)
+	}
+	return nil
+}
+
+func validateUploadAllocation(upload UploadAllocation) error {
+	if upload.ID <= 0 || upload.ParentID <= 0 {
+		return fmt.Errorf("未解析上传 %q 的 ID 或 parent ID 无效", upload.Name)
+	}
+	if upload.Name == "" || upload.Name == "." || upload.Name == ".." || strings.ContainsAny(upload.Name, "/\x00") {
+		return fmt.Errorf("未解析上传 ID %d 的名称不安全", upload.ID)
+	}
+	if upload.Size < 0 || normalizeMD5(upload.MD5) == "" {
+		return fmt.Errorf("未解析上传 ID %d 的大小或 MD5 无效", upload.ID)
 	}
 	return nil
 }
@@ -223,6 +248,15 @@ func (m *Manifest) Validate() error {
 		}
 		seen[object.ID] = "ledger"
 	}
+	for _, upload := range m.UnresolvedUploads {
+		if err := validateUploadAllocation(upload); err != nil {
+			return err
+		}
+		if previous := seen[upload.ID]; previous != "" {
+			return fmt.Errorf("对象 ID %d 在 %s 和未解析上传中重复", upload.ID, previous)
+		}
+		seen[upload.ID] = "unresolved upload"
+	}
 	if m.Usage.Files < len(m.Sentinels) {
 		return errors.New("文件配额计数未包含两个 sentinel")
 	}
@@ -267,10 +301,40 @@ func (m *Manifest) RecordObject(object Object) error {
 			return fmt.Errorf("对象 ID %d 已在 ledger 中", object.ID)
 		}
 	}
+	for _, upload := range m.UnresolvedUploads {
+		if upload.ID == object.ID {
+			return fmt.Errorf("对象 ID %d 已在未解析上传记录中", object.ID)
+		}
+	}
 	if object.Cleanup == "" {
 		object.Cleanup = CleanupActive
 	}
 	m.Objects = append(m.Objects, object)
+	return nil
+}
+
+// RecordUnresolvedUpload appends a known allocation that was never proven to
+// be a visible object. No mutation helper accepts these entries as targets.
+func (m *Manifest) RecordUnresolvedUpload(upload UploadAllocation) error {
+	if err := validateUploadAllocation(upload); err != nil {
+		return err
+	}
+	for _, sentinel := range m.Sentinels {
+		if sentinel.ID == upload.ID {
+			return fmt.Errorf("上传 ID %d 已被 sentinel 使用", upload.ID)
+		}
+	}
+	for _, object := range m.Objects {
+		if object.ID == upload.ID {
+			return fmt.Errorf("上传 ID %d 已在对象 ledger 中", upload.ID)
+		}
+	}
+	for _, existing := range m.UnresolvedUploads {
+		if existing.ID == upload.ID {
+			return fmt.Errorf("上传 ID %d 已在未解析上传记录中", upload.ID)
+		}
+	}
+	m.UnresolvedUploads = append(m.UnresolvedUploads, upload)
 	return nil
 }
 

@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	uploadChunkSize = int64(16 * fs.Mebi)
-	uploadBatchSize = int64(10)
-	maxUploadParts  = int64(10_000)
+	uploadChunkSize      = int64(16 * fs.Mebi)
+	largeUploadChunkSize = int64(32 * fs.Mebi)
+	uploadBatchSize      = int64(10)
+	maxUploadParts       = int64(10_000)
 )
 
 type partBatch struct {
@@ -48,11 +49,18 @@ func (e *ambiguousCompleteError) Error() string {
 
 func (e *ambiguousCompleteError) Unwrap() error { return e.err }
 
-func uploadPartCount(size int64) (int64, error) {
+func uploadPartCount(size, chunkSize int64) (int64, error) {
 	if size < 0 {
 		return 0, errorsNewProtocol("upload size is unknown")
 	}
-	parts := max((size+uploadChunkSize-1)/uploadChunkSize, 1)
+	if chunkSize != uploadChunkSize && chunkSize != largeUploadChunkSize {
+		return 0, errorsNewProtocol("unsupported presigned upload chunk size")
+	}
+	parts := size / chunkSize
+	if size%chunkSize != 0 {
+		parts++
+	}
+	parts = max(parts, 1)
 	if parts > maxUploadParts {
 		return 0, fmt.Errorf("123Pan presigned upload requires %d parts, maximum is %d", parts, maxUploadParts)
 	}
@@ -195,8 +203,8 @@ func (f *Fs) putPresignedPart(ctx context.Context, batch *uploadURLBatch, part u
 	return fmt.Errorf("upload part %d failed after 3 attempts: %w", part.number, last)
 }
 
-func readExactPart(reader io.Reader, size int64) ([]byte, error) {
-	if size < 0 || size > uploadChunkSize {
+func readExactPart(reader io.Reader, size, chunkSize int64) ([]byte, error) {
+	if size < 0 || size > chunkSize || (chunkSize != uploadChunkSize && chunkSize != largeUploadChunkSize) {
 		return nil, errorsNewProtocol("invalid upload part size")
 	}
 	buffer := make([]byte, size)
@@ -228,7 +236,11 @@ func (f *Fs) checkNewMultipartUpload(ctx context.Context, upload api.UploadData)
 }
 
 func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source *preparedSource) (*api.File, error) {
-	parts, err := uploadPartCount(source.size)
+	chunkSize, err := presignedChunkSize(upload)
+	if err != nil {
+		return nil, err
+	}
+	parts, err := uploadPartCount(source.size, chunkSize)
 	if err != nil {
 		return nil, err
 	}
@@ -259,9 +271,9 @@ func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source 
 			if producerErr != nil {
 				break
 			}
-			offset := (number - 1) * uploadChunkSize
-			partSize := min(uploadChunkSize, max(source.size-offset, 0))
-			data, readErr := readExactPart(reader, partSize)
+			offset := (number - 1) * chunkSize
+			partSize := min(chunkSize, max(source.size-offset, 0))
+			data, readErr := readExactPart(reader, partSize, chunkSize)
 			if readErr != nil {
 				<-slots
 				producerErr = fmt.Errorf("read upload part %d: %w", number, readErr)

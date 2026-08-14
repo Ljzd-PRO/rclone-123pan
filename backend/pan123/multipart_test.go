@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -35,7 +36,7 @@ func TestUploadPartPlanBoundaries(t *testing.T) {
 		{10*uploadChunkSize + 1, 11, 2},
 		{maxUploadParts * uploadChunkSize, maxUploadParts, 1000},
 	} {
-		parts, err := uploadPartCount(tc.size)
+		parts, err := uploadPartCount(tc.size, uploadChunkSize)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -43,8 +44,26 @@ func TestUploadPartPlanBoundaries(t *testing.T) {
 			t.Fatalf("size=%d parts=%d batches=%d", tc.size, parts, len(uploadBatches(parts)))
 		}
 	}
-	if _, err := uploadPartCount(maxUploadParts*uploadChunkSize + 1); err == nil {
+	if _, err := uploadPartCount(maxUploadParts*uploadChunkSize+1, uploadChunkSize); err == nil {
 		t.Fatal("accepted more than 10,000 parts")
+	}
+	if _, err := uploadPartCount(math.MaxInt64, uploadChunkSize); err == nil {
+		t.Fatal("accepted MaxInt64 upload size after overflow-safe planning")
+	}
+	parts, err := uploadPartCount(160*1024*1024+1, largeUploadChunkSize)
+	if err != nil || parts != 6 || len(uploadBatches(parts)) != 1 {
+		t.Fatalf("32 MiB profile planned parts=%d batches=%d err=%v", parts, len(uploadBatches(parts)), err)
+	}
+	parts, err = uploadPartCount(10*largeUploadChunkSize+1, largeUploadChunkSize)
+	if err != nil || parts != 11 || len(uploadBatches(parts)) != 2 {
+		t.Fatalf("32 MiB second batch planned parts=%d batches=%d err=%v", parts, len(uploadBatches(parts)), err)
+	}
+}
+
+func testPresignedUpload() api.UploadData {
+	return api.UploadData{
+		FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node",
+		SliceSize: strconv.FormatInt(uploadChunkSize, 10),
 	}
 }
 
@@ -59,6 +78,7 @@ type presignedHarness struct {
 	listParts      json.RawMessage
 	completeFile   *api.File
 	completeStatus int
+	chunkSize      int64
 	mu             sync.Mutex
 	parts          map[int64][]byte
 	block          <-chan struct{}
@@ -103,7 +123,11 @@ func (h *presignedHarness) control() http.Handler {
 			if err := decodeRequestJSON(r, &body); err != nil {
 				h.t.Error(err)
 			}
-			if body.Bucket != "bucket" || body.Key != "key" || body.UploadID != "upload" || body.StorageNode != "node" || body.FileID != 7 || body.IsMultipart != (body.FileSize > uploadChunkSize) {
+			chunkSize := h.chunkSize
+			if chunkSize == 0 {
+				chunkSize = uploadChunkSize
+			}
+			if body.Bucket != "bucket" || body.Key != "key" || body.UploadID != "upload" || body.StorageNode != "node" || body.FileID != 7 || body.IsMultipart != (body.FileSize > chunkSize) {
 				h.t.Errorf("invalid v2 completion request: %#v", body)
 			}
 			h.complete.Add(1)
@@ -200,7 +224,7 @@ func TestPresignedReadsNoMoreThanActivePayloads(t *testing.T) {
 	source := &preparedSource{reader: reader, size: int64(len(data)), md5: hex.EncodeToString(digest[:])}
 	done := make(chan error, 1)
 	go func() {
-		_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+		_, err := f.uploadPresigned(context.Background(), testPresignedUpload(), source)
 		done <- err
 	}()
 	for range 2 {
@@ -244,12 +268,12 @@ func TestPresignedUploadBoundaries(t *testing.T) {
 			data := bytes.Repeat([]byte{'x'}, int(size))
 			digest := md5.Sum(data)
 			source := &preparedSource{reader: bytes.NewReader(data), size: size, md5: hex.EncodeToString(digest[:])}
-			upload := api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}
+			upload := testPresignedUpload()
 			completed, err := f.uploadPresigned(context.Background(), upload, source)
 			if err != nil {
 				t.Fatal(err)
 			}
-			parts, _ := uploadPartCount(size)
+			parts, _ := uploadPartCount(size, uploadChunkSize)
 			wantList := int64(0)
 			if parts > 1 {
 				wantList = 1
@@ -268,13 +292,37 @@ func TestPresignedUploadBoundaries(t *testing.T) {
 	}
 }
 
+func TestPresignedUses32MiBServerSlice(t *testing.T) {
+	h := &presignedHarness{t: t, parts: make(map[int64][]byte), chunkSize: largeUploadChunkSize}
+	f := newPresignedTestFs(t, h)
+	data := bytes.Repeat([]byte{'z'}, int(largeUploadChunkSize+1))
+	digest := md5.Sum(data)
+	upload := testPresignedUpload()
+	upload.SliceSize = strconv.FormatInt(largeUploadChunkSize, 10)
+	completed, err := f.uploadPresigned(context.Background(), upload, &preparedSource{
+		reader: bytes.NewReader(data), size: int64(len(data)), md5: hex.EncodeToString(digest[:]),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed == nil || h.listCalls.Load() != 1 || h.complete.Load() != 1 || len(h.parts) != 2 {
+		t.Fatalf("completed=%#v list=%d complete=%d parts=%d", completed, h.listCalls.Load(), h.complete.Load(), len(h.parts))
+	}
+	if got := int64(len(h.parts[1])); got != largeUploadChunkSize {
+		t.Fatalf("first part size=%d, want %d", got, largeUploadChunkSize)
+	}
+	if got := len(h.parts[2]); got != 1 {
+		t.Fatalf("last part size=%d, want 1", got)
+	}
+}
+
 func TestPresigned403RefreshesBatch(t *testing.T) {
 	h := &presignedHarness{t: t, parts: make(map[int64][]byte)}
 	h.forbidOne.Store(true)
 	f := newPresignedTestFs(t, h)
 	digest := md5.Sum([]byte("x"))
 	source := &preparedSource{reader: strings.NewReader("x"), size: 1, md5: hex.EncodeToString(digest[:])}
-	if _, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source); err != nil {
+	if _, err := f.uploadPresigned(context.Background(), testPresignedUpload(), source); err != nil {
 		t.Fatal(err)
 	}
 	if h.urlCalls.Load() != 2 || h.putCalls.Load() != 2 || h.complete.Load() != 1 || h.oldFlow.Load() != 0 {
@@ -296,7 +344,7 @@ func TestPresignedDoesNotCompleteOnShortOrChangedSource(t *testing.T) {
 			h := &presignedHarness{t: t, parts: make(map[int64][]byte)}
 			f := newPresignedTestFs(t, h)
 			source := &preparedSource{reader: strings.NewReader(tc.data), size: tc.size, md5: tc.sum}
-			_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+			_, err := f.uploadPresigned(context.Background(), testPresignedUpload(), source)
 			if err == nil || h.complete.Load() != 0 || h.oldFlow.Load() != 0 {
 				t.Fatalf("err=%v complete=%d old=%d", err, h.complete.Load(), h.oldFlow.Load())
 			}
@@ -314,7 +362,7 @@ func TestPresignedRejectsUnverifiedResumeParts(t *testing.T) {
 	data := bytes.Repeat([]byte{'x'}, int(uploadChunkSize+1))
 	digest := md5.Sum(data)
 	source := &preparedSource{reader: bytes.NewReader(data), size: int64(len(data)), md5: hex.EncodeToString(digest[:])}
-	_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+	_, err := f.uploadPresigned(context.Background(), testPresignedUpload(), source)
 	if err == nil {
 		t.Fatal("accepted unverified multipart resume state")
 	}
@@ -328,7 +376,7 @@ func TestPresignedRequiresCompleteFileInfo(t *testing.T) {
 	f := newPresignedTestFs(t, h)
 	digest := md5.Sum([]byte("x"))
 	source := &preparedSource{reader: strings.NewReader("x"), size: 1, md5: hex.EncodeToString(digest[:])}
-	_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+	_, err := f.uploadPresigned(context.Background(), testPresignedUpload(), source)
 	if err == nil {
 		t.Fatal("accepted upload_complete/v2 without a valid file_info mapping")
 	}
@@ -350,7 +398,7 @@ func TestPresignedAcceptsExplicitCompletionFileIDMapping(t *testing.T) {
 		},
 	}
 	f := newPresignedTestFs(t, h)
-	completed, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, &preparedSource{reader: strings.NewReader("x"), size: 1, md5: sum})
+	completed, err := f.uploadPresigned(context.Background(), testPresignedUpload(), &preparedSource{reader: strings.NewReader("x"), size: 1, md5: sum})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +412,7 @@ func TestPresignedCompletionIsNeverReplayed(t *testing.T) {
 	f := newPresignedTestFs(t, h)
 	digest := md5.Sum([]byte("x"))
 	source := &preparedSource{reader: strings.NewReader("x"), size: 1, md5: hex.EncodeToString(digest[:])}
-	_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+	_, err := f.uploadPresigned(context.Background(), testPresignedUpload(), source)
 	var ambiguous *ambiguousCompleteError
 	if !errors.As(err, &ambiguous) {
 		t.Fatalf("completion error = %v, want ambiguousCompleteError", err)

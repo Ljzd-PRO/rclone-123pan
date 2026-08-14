@@ -7,7 +7,7 @@
 | 能力 | 状态与约束 |
 | --- | --- |
 | List、NewObject | 完整分页后才返回；重复 ID、路径歧义和 Total 漂移均失败关闭 |
-| Put、PutStream | 0/1/16 MiB−1/16 MiB/16 MiB+1 与秒传已真实通过；大批次和完整契约未完成 |
+| Put、PutStream | 0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1、并发 3 与秒传已真实通过；32 MiB 动态档位已由真实响应和 mock 固化，完整契约未完成 |
 | Mkdir、Rmdir | 按精确 ID 协调；Rmdir 需要连续两次完整空列表 |
 | Open | 支持完整读取、Range、Seek 和后缀范围；下载客户端不携带控制端凭据 |
 | Update | staging/backup 状态机；回滚不完整时返回精确恢复 ID |

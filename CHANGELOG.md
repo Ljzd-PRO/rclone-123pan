@@ -15,3 +15,5 @@
 - 为真实测试恢复 ledger 增加不可回退的 `active → trashed → missing_confirmed` 清理状态，禁止把哨兵标记为已清理。
 - 真实通过 0、1、16 MiB−1、16 MiB 和 16 MiB+1 上传边界及完整下载校验；固化完成响应可把预申请 ID 映射为不同最终 ID 的契约。
 - 真实验证 16 MiB+1 完整下载、前缀 Range、Seek、suffix-range 和路径大小写敏感行为。
+- 修复 rooted rclone Fs 的父路径复核基准和 Update 特殊名称二次编码；真实通过可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝及由内向外安全清理。
+- 真实通过 48 MiB+1 四分片并发 3 上传和完整下载；160 MiB+1 预申请确认服务端动态返回 32 MiB `SliceSize`，生产实现只接受实测的 16/32 MiB 两档，其他值在数据 PUT 前失败关闭。

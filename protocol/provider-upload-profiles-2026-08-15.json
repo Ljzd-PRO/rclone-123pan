@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "observation": {
+    "date": "2026-08-15",
+    "source": "隔离真实账号的 typed upload_request 响应与终态验证",
+    "raw_response_persisted": false,
+    "sanitized": true
+  },
+  "profiles": [
+    {
+      "declared_size_bytes": 50331649,
+      "slice_size_response_type": "string",
+      "slice_size_response_value": "16777216",
+      "planned_parts": 4,
+      "upload_concurrency": 3,
+      "result": "完整上传、终态核验和完整下载逐字节校验通过"
+    },
+    {
+      "declared_size_bytes": 167772161,
+      "slice_size_response_type": "string",
+      "slice_size_response_value": "33554432",
+      "planned_parts_after_repair": 6,
+      "data_put_count": 0,
+      "complete_call_count": 0,
+      "result": "旧固定 16 MiB 假设在数据 PUT 前失败关闭；精确 file ID 仅写入受控恢复记录，不进入本夹具"
+    }
+  ],
+  "accepted_current_profile": {
+    "slice_size_values": [
+      "16777216",
+      "33554432"
+    ],
+    "other_values": "失败关闭",
+    "batch_size": 10,
+    "max_parts": 10000
+  }
+}

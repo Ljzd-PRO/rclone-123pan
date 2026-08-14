@@ -13,8 +13,8 @@ func TestProtocolFixturesAreSanitizedJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(paths) != 2 {
-		t.Fatalf("expected 2 protocol fixtures, got %d", len(paths))
+	if len(paths) != 3 {
+		t.Fatalf("expected 3 protocol fixtures, got %d", len(paths))
 	}
 	for _, path := range paths {
 		body, err := os.ReadFile(path)
