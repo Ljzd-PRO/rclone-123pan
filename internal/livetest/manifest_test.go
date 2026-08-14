@@ -173,6 +173,29 @@ func TestImportRcloneListRequiresExactPrefixedDirectChildren(t *testing.T) {
 	}
 }
 
+func TestImportRcloneListAllowsOnlyActiveLedgerDirectoryParent(t *testing.T) {
+	manifest := validManifest()
+	if err := manifest.ReserveDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.RecordObject(Object{Kind: KindDirectory, ID: 40, ParentID: manifest.WorkRootID, Name: "scope", Size: 0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.ReserveFile(1); err != nil {
+		t.Fatal(err)
+	}
+	body := `[{"Path":"rc-f-01","Name":"rc-f-01","Size":1,"IsDir":false,"Hashes":{"md5":"9dd4e461268c8034f5c8564e155c67a6"},"ID":"41"}]`
+	if err := manifest.ImportRcloneList(strings.NewReader(body), 40, "rc-", 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.MarkCleanup(40, CleanupTrashed); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.ImportRcloneList(strings.NewReader(`[]`), 40, "rc-", 0); err == nil {
+		t.Fatal("已清理目录仍被接受为导入范围")
+	}
+}
+
 func TestManifestRejectsCleanedSentinel(t *testing.T) {
 	manifest := validManifest()
 	manifest.Sentinels[0].Cleanup = CleanupMissingConfirmed

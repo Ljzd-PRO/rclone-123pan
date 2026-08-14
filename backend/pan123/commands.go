@@ -14,18 +14,18 @@ import (
 var commandHelp = []fs.CommandHelp{
 	{
 		Name:  "offline-add",
-		Short: "Resolve and add one URL as a 123Pan offline-download task.",
-		Long:  "The remote path is the destination directory. Exactly one URL argument is required. Returns a JSON object containing task_id.",
+		Short: "解析一个 URL 并添加为 123 网盘离线下载任务。",
+		Long:  "remote 路径即保存目录。必须提供且只能提供一个 URL 参数；返回包含 task_id 的 JSON 对象。",
 	},
 	{
 		Name:  "offline-status",
-		Short: "Return stable status JSON for one or more offline task IDs.",
-		Long:  "Every argument must be a positive integer task ID. Unknown server status values are preserved and normalized_status is unknown.",
+		Short: "返回一个或多个离线任务 ID 的稳定状态 JSON。",
+		Long:  "每个参数都必须是正整数任务 ID。未知服务端状态会保留原值，并把 normalized_status 标记为 unknown。",
 	},
 	{
 		Name:  "offline-delete",
-		Short: "Delete one or more offline task IDs and verify disappearance.",
-		Long:  "Every argument must be a positive integer. The command queries tasks after deletion and reports success only after all IDs are absent.",
+		Short: "删除一个或多个离线任务 ID，并确认其消失。",
+		Long:  "每个参数都必须是正整数。删除后会重新查询任务，只有全部指定 ID 均不可见时才报告成功。",
 	},
 }
 

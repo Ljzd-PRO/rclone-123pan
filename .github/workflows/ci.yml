@@ -25,7 +25,7 @@ jobs:
           version: v2.4.0
           args: --timeout=10m
 
-  contract-compile:
+  contract-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

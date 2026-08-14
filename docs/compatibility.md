@@ -6,7 +6,7 @@
 
 rclone v1.75.0 要求每个已注册后端的文档都嵌入 rclone 自身的 `docs/data/backends` 包。树外后端无法向该嵌入式文件系统添加内容，因此这个固定版本会在启动时输出无害的 `no overview data found for "123pan"` 诊断信息。后端注册和实际操作不受影响。若不维护完整 fork，要消除此信息就必须修改上游 rclone；目前将其作为兼容性问题跟踪，不得通过替换或修补已固定的 rclone 依赖来隐藏。
 
-契约测试脚本不会修改仓库中固定的依赖，也不维护 rclone fork。它会创建一个用后即弃的精确 checkout，加入一个 blank import 和本地 `go.mod replace`，测试结束后再删除该 checkout。这也是树外模块如果不进行注入，就无法直接运行上游 operations/sync/VFS/bisync 测试的原因。
+契约测试脚本不会修改仓库中固定的依赖，也不维护 rclone fork。它会创建一个用后即弃的精确 checkout，加入一个 blank import 和本地 `go.mod replace`，真实运行账号无关的 operations/sync/VFS/bisync 单元契约，测试结束后再删除该 checkout。这也是树外模块如果不进行注入，就无法直接运行这些上游测试的原因。需要专用空账号的 `test_all` 仍受单独的 sentinel 和 manifest 门禁保护。
 
 ## 当前个人盘 API 漂移
 

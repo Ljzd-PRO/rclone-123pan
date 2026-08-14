@@ -24,7 +24,7 @@
 
 | 能力或命令 | 回退路径 |
 | --- | --- |
-| 普通 copy、copyto、sync | 缺少服务端 Copy 时使用 Open+Put/Update；Put 仍可通过 MD5 命中秒传 |
+| 普通 copy、copyto、sync | 缺少服务端 Copy 时使用 Open+Put/Update；Put 仍可通过 MD5 命中秒传；远端到远端 copyto、sync --checksum 和 max-delete 已隔离实测 |
 | purge | 逐项调用 Remove，再安全删除空目录 |
 | `--fast-list` | 缺少 ListR 时递归调用严格 List |
 | 多线程写 | 缺少 OpenWriterAt/OpenChunkWriter 时使用后端自身有界分片 Put |
@@ -49,4 +49,4 @@
 - 删除：`delete`、`deletefile`、`rmdir`、`rmdirs`、core `purge`、dry-run 和 max-delete。
 - 上层：bisync、VFS、mount、serve、RC、crypt 包装 remote 和离线 backend commands。
 
-CI 使用 feature golden 检查全部 rclone `fs.Features` 字段。新增方法如果导致 Copy、Purge、ListR、CleanUp、PublicLink 等接口意外变为非空，测试必须失败。
+CI 使用 feature golden 检查全部 rclone `fs.Features` 字段。新增方法如果导致 Copy、Purge、ListR、CleanUp、PublicLink 等接口意外变为非空，测试必须失败。RC `operations/list` 与 `operations/stat` 已和 CLI 结果做过真实 ID/MD5 对等验证。

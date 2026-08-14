@@ -3,7 +3,7 @@
 本仓库用于构建定制的 `rclone-123` 二进制，其中包含面向 123 网盘个人账号的实验性树外后端。
 
 > [!WARNING]
-> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-15 已通过官方 Web 脱敏抓线闭合当前单片、多片和秒传协议；修复后的后端已完成 0 至 48 MiB+1 上传边界、秒传、可恢复 Update 和安全 Move/DirMove/Rmdir 的隔离真实闭环。分页和高层契约尚未完成，因此仍不适合公开发布或生产使用。
+> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-15 已通过官方 Web 脱敏抓线闭合当前单片、多片和秒传协议；修复后的后端已完成 0 至 48 MiB+1 上传边界、100/101 项分页、秒传、可恢复 Update、安全 Move/DirMove/Rmdir、core Copy/sync 回退和只读 RC 的隔离真实闭环。bisync、VFS、serve、挂载和七日 canary 尚未完成，因此仍不适合公开发布或生产使用。
 
 ## 固定基线
 
@@ -28,7 +28,7 @@
 | 安全的 mkdir/remove/rmdir 和按 ID 验证的 Move/DirMove | 已通过单元测试与隔离真实闭环 |
 | 离线任务 add/status/delete 后端命令 | 已实现并通过单元测试 |
 | 故障 transport、受门禁保护的 fstests、固定 rclone 契约注入 | 已实现 |
-| 隔离真实账号测试 | 0 至 48 MiB+1、并发 3、完整下载、MD5、秒传、Update、Move/DirMove 和精确软删除已通过 |
+| 隔离真实账号测试 | 0 至 48 MiB+1、并发 3、100/101 项分页、完整下载、MD5、秒传、Update、Move/DirMove、core Copy/sync、max-delete、只读 RC 和精确软删除已通过 |
 | 专用空账号完整契约测试 | 阻断：尚无满足 sentinel 门禁的专用账号 |
 | 公开发布 | 阻断：许可证审查和真实环境验证未完成 |
 
@@ -64,6 +64,6 @@ make build
 
 预期行为和发布门禁详见[后端说明](docs/123pan.md)、[rclone 能力清单](docs/capabilities.md)、[安全说明](docs/security.md)和[测试说明](docs/testing.md)。隔离实测及官方 Web 脱敏协议证据见[真实账号测试记录](docs/live-testing.md)和[协议证据夹具](protocol/README.md)，替换失败后的处理见[恢复与回滚](docs/recovery.md)。
 
-`make contract` 会临时克隆精确的 rclone commit，把本模块注入其 `backend/all`，并编译上游 operations、sync、VFS 和 bisync 测试包。只有在明确提供全部真实测试门禁变量后，才会运行具有破坏性的 `test_all`。
+`make contract` 会临时克隆精确的 rclone commit，把本模块注入其 `backend/all`，并真实运行上游账号无关的 operations、sync、VFS 和 bisync 单元契约。只有在明确提供全部专用空账号门禁变量后，才会运行具有破坏性的 `test_all`。
 
 手动触发的内部 alpha 工作流会为 Linux amd64/arm64、Windows amd64 和 macOS amd64/arm64 构建可复现压缩包，同时生成 SHA-256 校验值、确定性的 CycloneDX 1.6 SBOM、嵌入式 Go 构建信息和构建来源记录。工作流只上传保留七天的私有 artifact，绝不会创建公开 release。在许可证和真实账号门禁全部解除前，不得分发这些构建产物。

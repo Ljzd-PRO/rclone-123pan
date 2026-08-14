@@ -105,7 +105,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		importErr := manifest.ImportRcloneList(input, rootID, *prefix, *expected)
+		importParentID := *parentID
+		if importParentID == 0 {
+			importParentID = rootID
+		}
+		importErr := manifest.ImportRcloneList(input, importParentID, *prefix, *expected)
 		closeErr := input.Close()
 		if importErr != nil || closeErr != nil {
 			fmt.Fprintln(os.Stderr, errors.Join(importErr, closeErr))

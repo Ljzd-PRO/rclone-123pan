@@ -361,7 +361,20 @@ func (m *Manifest) RecordUnresolvedUpload(upload UploadAllocation) error {
 // array. A caller-provided random prefix and exact expected count prevent a
 // broad account listing from being turned into deletion authority.
 func (m *Manifest) ImportRcloneList(reader io.Reader, parentID int64, prefix string, expectedNew int) error {
-	if parentID != m.WorkRootID || prefix == "" || strings.ContainsAny(prefix, "/\x00") || expectedNew < 0 {
+	parentAllowed := parentID == m.WorkRootID
+	if !parentAllowed {
+		for _, object := range m.Objects {
+			cleanup := object.Cleanup
+			if cleanup == "" {
+				cleanup = CleanupActive
+			}
+			if object.ID == parentID && object.Kind == KindDirectory && cleanup == CleanupActive {
+				parentAllowed = true
+				break
+			}
+		}
+	}
+	if !parentAllowed || prefix == "" || strings.ContainsAny(prefix, "/\x00") || expectedNew < 0 {
 		return errors.New("lsjson 导入范围无效")
 	}
 	decoder := json.NewDecoder(io.LimitReader(reader, 16*Mebi))
