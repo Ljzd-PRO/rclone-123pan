@@ -28,14 +28,22 @@ if [ "${RCLONE_123_RUN_LIVE:-0}" != "1" ]; then
   echo "contract compile passed; live test_all skipped (RCLONE_123_RUN_LIVE is not 1)"
   exit 0
 fi
+if [ "${RCLONE_123_LIVE_ACK:-}" != "DEDICATED_EMPTY_ACCOUNT" ]; then
+  echo "live test_all requires RCLONE_123_LIVE_ACK=DEDICATED_EMPTY_ACCOUNT" >&2
+  exit 1
+fi
 if [ -z "${RCLONE_123_LIVE_ROOT_ID:-}" ] || [ "$RCLONE_123_LIVE_ROOT_ID" = "0" ]; then
   echo "live contract tests require a fixed non-zero RCLONE_123_LIVE_ROOT_ID" >&2
   exit 1
 fi
-if [ -z "${RCLONE_123_LIVE_SENTINELS:-}" ]; then
-  echo "live contract tests require RCLONE_123_LIVE_SENTINELS" >&2
+if [ -z "${RCLONE_123_LIVE_MANIFEST:-}" ]; then
+  echo "live contract tests require RCLONE_123_LIVE_MANIFEST" >&2
   exit 1
 fi
+go run "$root/tools/livemanifest" \
+  -file "$RCLONE_123_LIVE_MANIFEST" \
+  -root-id "$RCLONE_123_LIVE_ROOT_ID" \
+  -mode dedicated-contract
 
 cp "$root/tools/test-all.yaml" "$checkout/test-all.yaml"
 go run ./fstest/test_all -config "$checkout/test-all.yaml" -backends 123pan -tests fs/operations,fs/sync,vfs,cmd/bisync -maxtries 1

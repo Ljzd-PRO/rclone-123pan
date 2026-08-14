@@ -52,6 +52,15 @@ func init() {
 	})
 }
 
+func buildFeatures(ctx context.Context, f *Fs) *fs.Features {
+	return (&fs.Features{
+		CaseInsensitive:         false,
+		CanHaveEmptyDirectories: true,
+		PartialUploads:          true,
+		DuplicateFiles:          false,
+	}).Fill(ctx, f)
+}
+
 // Options defines persisted remote configuration.
 type Options struct {
 	User              string               `config:"user"`
@@ -136,12 +145,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 
 	f := &Fs{name: name, root: strings.Trim(root, "/"), opt: opt, client: c, uid: user.UID, downloadClient: fshttp.NewClient(ctx), uploadMergeDelay: time.Second, locks: locksForUID(user.UID), stageName: randomStageName}
 	f.dirCache = dircache.New(f.root, opt.RootFolderID, f)
-	f.features = (&fs.Features{
-		CaseInsensitive:         false,
-		CanHaveEmptyDirectories: true,
-		PartialUploads:          true,
-		DuplicateFiles:          false,
-	}).Fill(ctx, f)
+	f.features = buildFeatures(ctx, f)
 	if err := f.resolveRoot(ctx); err != nil {
 		return f, err
 	}
@@ -198,12 +202,7 @@ func (f *Fs) resolveRoot(ctx context.Context) error {
 	}
 	f.root = temporary.root
 	f.dirCache = temporary.dirCache
-	f.features = (&fs.Features{
-		CaseInsensitive:         false,
-		CanHaveEmptyDirectories: true,
-		PartialUploads:          true,
-		DuplicateFiles:          false,
-	}).Fill(ctx, f)
+	f.features = buildFeatures(ctx, f)
 	return fs.ErrorIsFile
 }
 

@@ -62,7 +62,7 @@ make build
 
 本后端有意不提供服务端 `Copy` 或 `Purge`。rclone core 会回退到 `Put`（仍可通过 MD5 命中秒传）以及逐 ID 删除。当前也不实现链接、分享、公开链接、修改时间写入、`ListR`、清理、变更通知和永久删除。
 
-预期行为和发布门禁详见[后端说明](docs/123pan.md)、[安全说明](docs/security.md)和[测试说明](docs/testing.md)。2026-08-14 的隔离实测证据见[真实账号测试记录](docs/live-testing.md)，替换失败后的处理见[恢复与回滚](docs/recovery.md)。
+预期行为和发布门禁详见[后端说明](docs/123pan.md)、[rclone 能力清单](docs/capabilities.md)、[安全说明](docs/security.md)和[测试说明](docs/testing.md)。2026-08-14 的隔离实测证据见[真实账号测试记录](docs/live-testing.md)，替换失败后的处理见[恢复与回滚](docs/recovery.md)。
 
 `make contract` 会临时克隆精确的 rclone commit，把本模块注入其 `backend/all`，并编译上游 operations、sync、VFS 和 bisync 测试包。只有在明确提供全部真实测试门禁变量后，才会运行具有破坏性的 `test_all`。
 
