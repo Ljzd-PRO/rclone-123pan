@@ -11,3 +11,5 @@
 删除操作仅表示把一个经过验证的对象 ID 移入回收站。永久删除和清空回收站不在项目范围内。
 
 生产二进制不提供 API endpoint 覆盖选项，编译时固定使用 `login.123pan.com` 和 `api.123278.com/b/api`，Web 页面来源固定为 `yun.123pan.cn`。无套接字 mock 测试和跨仓库测试只有显式启用 `pan123test` 构建 tag 时，才可通过环境变量替换 endpoint。发布构建绝不能包含该 tag。
+
+serve、RC 和挂载测试默认只能绑定本机回环地址。若操作人员主动把 HTTP、DLNA、WebDAV、FTP、SFTP、S3 或 NFS 暴露到 LAN/公网，必须另行配置协议认证、TLS、主机防火墙和最小 remote root；这不属于后端默认安全边界。

@@ -4,7 +4,7 @@
 
 构建矩阵覆盖 Linux amd64/arm64、Windows amd64 和 macOS amd64/arm64。其他目标在经过明确测试前仅支持从源码构建。
 
-五平台核心工件固定使用 `CGO_ENABLED=0`。当前 macOS 核心工件只含 `nfsmount`，不含 `mount` 子命令；需要 macFUSE/WinFsp 等平台依赖的原生挂载必须作为单独工件构建和测试。serve WebDAV 或 VFS 单元契约通过，不能替代 native mount runner 的结论。
+五平台核心工件固定使用 `CGO_ENABLED=0`。当前 macOS 核心工件只含 `nfsmount`，不含 `mount` 子命令；本轮 `nfsmount` 与独立 NFS serve + `mount_nfs` 均已真实挂载通过。需要 macFUSE/WinFsp 等平台依赖的其他原生挂载仍必须作为单独工件构建和测试；单个平台或 serve WebDAV 通过不能替代其他 native runner 的结论。
 
 rclone v1.75.0 要求每个已注册后端的文档都嵌入 rclone 自身的 `docs/data/backends` 包。树外后端无法向该嵌入式文件系统添加内容，因此这个固定版本会在启动时输出无害的 `no overview data found for "123pan"` 诊断信息。后端注册和实际操作不受影响。若不维护完整 fork，要消除此信息就必须修改上游 rclone；目前将其作为兼容性问题跟踪，不得通过替换或修补已固定的 rclone 依赖来隐藏。
 

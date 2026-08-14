@@ -49,8 +49,14 @@
 26. 启用 `--check-access` 后，从本地新增 2 字节对象能同步到远端；另一个已登记的 1 字节远端对象按同一 ID 移入 bisync 目录后，也能反向下载到本地。每轮都找到两侧唯一 marker，并以完整内容、ID 和 MD5 核验。
 27. 删除本地测试文件后，bisync `--max-delete 0` 在应用远端删除前安全中止；恢复本地文件并使用 `--recover --resilient` 后无传输收敛，四个远端对象的 ID 全部保持不变。
 28. 使用四个已登记空目录分别验证 VFS cache mode `off`、`minimal`、`writes` 和 `full`。每种模式都通过 WebDAV PUT、GET、PROPFIND 与完整内容比较；full 模式还通过回环 RC 验证 `vfs/list`、`vfs/stats`、`vfs/refresh` 和 `vfs/forget`。服务仅绑定 `127.0.0.1`，验证后立即停止。
+29. HTTP serve 的目录索引和完整下载通过；DLNA 的 `rootDesc.xml`、ContentDirectory SOAP Browse 及 `/r/` 资源下载均返回同一个已登记 4 字节文件。
+30. FTP 被动模式、系统 SFTP 客户端和 rclone S3 客户端分别在三个已登记空目录中完成上传、列表与完整下载。每个服务只绑定回环地址；SFTP 不写 known_hosts，S3 使用一次性本地测试密钥。
+31. NFS serve 被 macOS `mount_nfs` 成功挂载到全新临时目录。`tools/vfsprobe` 经 full cache 执行 seek 覆写、truncate、fsync 和重开校验后，形成一个 12 字节对象；从 123Pan 完整下载后再次通过同一固定内容校验。
+32. 当前定制二进制的 `nfsmount` 命令也成功挂载同一已登记目录并读取两个对象，收到中断后自动卸载；挂载表确认没有遗留挂载。该结论只适用于本轮 macOS NFS 路径，不外推到 Linux、Windows 或未编入的 FUSE mount。
+33. 临时 crypt remote 在 0600 配置中使用 obscure 密钥，把 6 字节明文写成 54 字节底层对象；crypt 视图名称和明文大小正确，完整下载一致，底层加密名称对象按精确 ID/MD5 登记。
+34. `offline-status` 与 `offline-delete` 的实现为保证分页一致性会在内存中枚举全部离线任务。为避免接触个人账号中的既有任务名称，本轮不做 live 离线任务；状态化 mock 仍覆盖 add/status/delete 生命周期、分页、未知状态和删除确认。
 
-本轮累计计数为 73 次文件分配、50 个目录分配和 469,770,321 字节声明 payload，没有超过 100 文件、50 目录、单文件 160 MiB+1 和 512 MiB 硬预算。目录配额已用尽，后续上层测试只允许复用已登记的空目录，不能分配新目录。当前 `CGO_ENABLED=0` 核心二进制在 macOS 只编入 `nfsmount`，没有 `mount` 子命令；native mount 必须使用对应平台依赖和构建产物单独验证，不能用 WebDAV/VFS 结果替代。160 MiB+1 成功闭环因本轮不可退款 payload 配额而留待下一次全新活动。
+本轮累计计数为 78 次文件分配、50 个目录分配和 469,770,400 字节声明 payload，没有超过 100 文件、50 目录、单文件 160 MiB+1 和 512 MiB 硬预算。目录配额已用尽，后续上层测试只允许复用已登记的空目录，不能分配新目录。当前 `CGO_ENABLED=0` 核心二进制在 macOS 只编入 `nfsmount`，没有 `mount` 子命令；其他平台 native mount 必须使用对应平台依赖和 runner 单独验证，不能从本轮结果推断。160 MiB+1 成功闭环因本轮不可退款 payload 配额而留待下一次全新活动。
 
 ## 2026-08-14 隔离冒烟测试
 
