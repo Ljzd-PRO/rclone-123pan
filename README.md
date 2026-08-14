@@ -40,7 +40,7 @@
 | Range / Seek | 支持按范围读取，便于媒体读取、VFS 和部分下载场景。 |
 | 软删除 | 删除只会移入 123 网盘回收站；本项目不提供永久删除或清空回收站。 |
 | 离线任务 | 可以通过 `rclone backend` 添加、查询和删除 123 网盘离线下载任务。 |
-| 多平台 | 提供 Windows amd64、macOS Intel/Apple 芯片、Linux amd64/arm64 构建。 |
+| 多平台 | 提供 Windows amd64、macOS Intel/Apple 芯片、Linux amd64/arm64 构建，以及 Debian/Ubuntu `.deb` 安装包。 |
 
 详细能力和限制见 [rclone 能力清单](docs/capabilities.md)。
 
@@ -50,9 +50,9 @@
 
 有两种下载方式：
 
-1. **Release 版本（最方便）**：打开 [Releases 页面](https://github.com/Ljzd-PRO/rclone-123pan/releases)，展开最新版本的 Assets，下载与你的系统匹配的压缩包，同时下载 `SHA256SUMS`。
+1. **Release 版本（最方便）**：打开 [Releases 页面](https://github.com/Ljzd-PRO/rclone-123pan/releases)，展开最新版本的 Assets，下载与你的系统匹配的安装包或压缩包，同时下载 `SHA256SUMS`。
 
-2. **自动构建版本（适合私有测试）**：如果 Releases 页面暂时没有可用版本，请打开 [自动构建工件](https://github.com/Ljzd-PRO/rclone-123pan/actions/workflows/internal-alpha.yml)，选择最新的绿色运行记录，在页面底部下载 Artifacts。解压外层 artifact 后，会看到五个平台压缩包和 `SHA256SUMS`。这类 artifact 目前只保留 7 天。
+2. **自动构建版本（适合私有测试）**：如果 Releases 页面暂时没有可用版本，请打开 [自动构建工件](https://github.com/Ljzd-PRO/rclone-123pan/actions/workflows/internal-alpha.yml)，选择最新的绿色运行记录，在页面底部下载 Artifacts。解压外层 artifact 后，会看到五个平台压缩包、两个 Debian 安装包和 `SHA256SUMS`。这类 artifact 目前只保留 7 天。
 
 > [!NOTE]
 > 这是私有仓库时，你必须先登录有访问权限的 GitHub 账号，才能下载 Release 或 Actions artifact。
@@ -64,12 +64,40 @@
 | 常见的 64 位 Windows 电脑 | `windows_amd64.zip` |
 | Apple 芯片 Mac（M1、M2、M3、M4 等） | `darwin_arm64.tar.gz` |
 | Intel 芯片 Mac | `darwin_amd64.tar.gz` |
+| Debian / Ubuntu，Intel 或 AMD 64 位 | `linux_amd64.deb` |
+| Debian / Ubuntu，ARM64 | `linux_arm64.deb` |
 | Intel / AMD 处理器的 Linux、NAS、服务器 | `linux_amd64.tar.gz` |
 | ARM64 Linux、ARM NAS 或开发板 | `linux_arm64.tar.gz` |
 
 当前不提供 32 位系统构建。
 
-### 第二步：校验并解压
+### Debian / Ubuntu：推荐使用 `.deb` 安装
+
+Debian、Ubuntu、Linux Mint 等基于 Debian 的系统可以直接安装项目专属的 `rclone-123pan` 包。先确认系统架构：
+
+```console
+dpkg --print-architecture
+```
+
+输出 `amd64` 时选择 `linux_amd64.deb`，输出 `arm64` 时选择 `linux_arm64.deb`。下载后先核对 SHA-256，再安装本地文件：
+
+```console
+sha256sum rclone-123pan_*_linux_amd64.deb
+sudo apt install ./rclone-123pan_*_linux_amd64.deb
+rclone-123 version
+```
+
+ARM64 用户把命令中的 `amd64` 换成 `arm64`。安装包会把程序放到 `/usr/bin/rclone-123`，因此安装完成后可以在任意目录直接运行 `rclone-123`。还可以运行 `man rclone-123` 查看随包安装的中文手册。
+
+这个包不会占用 `/usr/bin/rclone`，可以和 Debian 仓库中的官方 `rclone` 同时安装。它不包含自动更新源；升级时下载新的 `.deb`，再次运行 `sudo apt install ./新文件.deb` 即可。卸载命令是：
+
+```console
+sudo apt remove rclone-123pan
+```
+
+卸载不会删除你的 rclone 配置文件。如果不再需要配置，请先运行 `rclone-123 config file` 确认准确位置，再自行决定是否保留；不要直接删除不确定的路径。
+
+### 第二步：校验并解压压缩包
 
 每次构建都会附带 `SHA256SUMS`。建议在运行程序前核对下载文件的 SHA-256：
 

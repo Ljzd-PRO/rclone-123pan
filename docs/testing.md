@@ -36,7 +36,9 @@ manifest 对文件数、目录数、单文件大小和累计 payload 实施不�
 
 main 分支持续集成成功后，自动构建 workflow 会调用 `tools/build-alpha.sh`；该 workflow 也支持手动指定版本。脚本使用 Go 1.25.0、`CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false` 和强制 `noselfupdate` 交叉编译五个支持目标，把归档文件的所有者和时间戳统一为源码 commit，移除 gzip/zip 元数据，生成确定性的 CycloneDX 1.6 module SBOM 与来源记录，并校验 `SHA256SUMS`。
 
-Release workflow 只接受已经存在、且检出提交与标签提交一致的语义版本标签；自动标签触发和 `workflow_dispatch` 手动触发都必须通过完整 test/race/fuzz/vet/lint、actionlint、固定 rclone 契约、五平台构建和两次 checksum 验证。Release 正文只从仓库根目录的 `RELEASE_NOTES.md` 读取。除最终发布 job 的 `contents: write` 外，其他 workflow/job 都保持只读权限。
+同一脚本会为 Linux amd64/arm64 生成包名为 `rclone-123pan` 的 Debian 安装包。布局参照固定版 rclone 官方 `.deb`：程序、项目文档和 man page 分别安装到 `/usr/bin`、`/usr/share/doc` 与 `/usr/share/man/man1`；本项目使用独立命令 `/usr/bin/rclone-123`，不会覆盖 `/usr/bin/rclone`。`tools/test-deb-packages.sh` 会检查 control 字段、架构、Debian 版本、文件布局、权限、`md5sums`、SBOM、来源记录和本机架构二进制。持续集成还会在一次性 Ubuntu runner 中实际安装、查询并卸载 amd64 包，确认卸载后程序文件消失。
+
+Release workflow 只接受已经存在、且检出提交与标签提交一致的语义版本标签；自动标签触发和 `workflow_dispatch` 手动触发都必须通过完整 test/race/fuzz/vet/lint、actionlint、固定 rclone 契约、五平台构建、两种架构 Debian 包验证和两次 checksum 验证。Release 正文只从仓库根目录的 `RELEASE_NOTES.md` 读取。除最终发布 job 的 `contents: write` 外，其他 workflow/job 都保持只读权限。
 
 2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片/秒传线型。修复后的后端已经完成 1 KiB 普通上传、秒传、0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1 边界、并发 3、100/101 项真实分页、完整下载 MD5、可恢复 Update、同 ID Move/DirMove、非空 Rmdir 拒绝、精确软删除、双哨兵复核、同尺寸不同内容的 `check --checksum`、core Copy/sync 回退、max-delete、bisync 双向恢复、四种 VFS cache mode 与 VFS RC、HTTP/DLNA/WebDAV/FTP/SFTP/S3/NFS serve、macOS nfsmount 随机写，以及 crypt 包装。固定上游的账号无关 operations/sync/VFS/bisync 单元契约也已真实运行通过。160 MiB+1 预申请进一步确认服务端会返回 32 MiB `SliceSize`，但本轮因不可退款 payload 配额不再重试数据上传。离线任务 live、其他平台 native mount 和专用空账号 `test_all` 仍须按门禁继续。详细记录见[真实账号测试记录](live-testing.md)。
 

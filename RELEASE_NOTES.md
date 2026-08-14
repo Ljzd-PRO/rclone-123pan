@@ -9,10 +9,11 @@
 - 支持按精确 ID 验证的 Move、DirMove、软删除和安全空目录删除。
 - 根据当前官方 Web API 实现服务端 Copy，包括异步任务轮询、任意目标名称和安全覆盖。
 - 提供离线任务 backend commands、中文运维文档、状态化故障测试和固定 rclone 契约测试。
+- 提供包名为 `rclone-123pan` 的 Linux amd64/arm64 Debian 安装包，可与发行版官方 rclone 并存。
 
 ## 发布工件
 
-每个平台压缩包均包含定制二进制、README、许可说明、SBOM、构建来源和嵌入式构建信息。请下载 `SHA256SUMS` 并在使用前验证工件摘要。
+每个平台压缩包均包含定制二进制、README、许可说明、SBOM、构建来源和嵌入式构建信息。Linux amd64/arm64 还提供 `.deb`，安装 `/usr/bin/rclone-123`、中文项目文档和 `rclone-123(1)` 手册，不覆盖 `/usr/bin/rclone`。请下载 `SHA256SUMS` 并在使用前验证工件摘要。
 
 ## 已知限制
 
