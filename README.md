@@ -71,4 +71,6 @@ make build
 
 `make contract` 会临时克隆精确的 rclone commit，把本模块注入其 `backend/all`，并真实运行上游账号无关的 operations、sync、VFS 和 bisync 单元契约。只有在明确提供全部专用空账号门禁变量后，才会运行具有破坏性的 `test_all`。
 
-手动触发的内部 alpha 工作流会为 Linux amd64/arm64、Windows amd64 和 macOS amd64/arm64 构建可复现压缩包，同时生成 SHA-256 校验值、确定性的 CycloneDX 1.6 SBOM、嵌入式 Go 构建信息和构建来源记录。工作流只上传保留七天的私有 artifact，绝不会创建公开 release。在许可证和真实账号门禁全部解除前，不得分发这些构建产物。
+`持续集成` workflow 会在 push、pull request 和手动触发时运行 vet、单元测试、race、fuzz、Go 静态检查、Actions workflow 检查、固定 rclone 契约与五平台编译。main 分支的持续集成成功后，`自动构建工件` workflow 会自动生成带 commit 标识的 alpha 工件；也可通过 `workflow_dispatch` 指定版本手动构建。
+
+推送符合语义版本格式的 `v*` 标签后，`构建并发布 Release` workflow 会重新执行完整质量与契约门禁，构建 Linux amd64/arm64、Windows amd64 和 macOS amd64/arm64 可复现压缩包，验证 SHA-256，再使用仓库根目录的 [`RELEASE_NOTES.md`](RELEASE_NOTES.md) 作为正文创建 GitHub Release。也可手动选择一个已经存在的标签并决定 prerelease/draft；发布 job 是唯一具有 `contents: write` 权限的 job。公开稳定版标签仍必须在许可证和真实账号门禁全部解除后创建。

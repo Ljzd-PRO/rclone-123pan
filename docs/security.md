@@ -12,4 +12,6 @@
 
 生产二进制不提供 API endpoint 覆盖选项，编译时固定使用 `login.123pan.com` 和 `api.123278.com/b/api`，Web 页面来源固定为 `yun.123pan.cn`。无套接字 mock 测试和跨仓库测试只有显式启用 `123pantest` 构建 tag 时，才可通过环境变量替换 endpoint。发布构建绝不能包含该 tag。
 
+自动测试和构建 workflow 只授予 `contents: read`。Release workflow 也默认只读，只有在全部门禁通过后执行的发布 job 获得 `contents: write`，并使用 GitHub 自动生成、仅限当前仓库的 `GITHUB_TOKEN`。发布标签必须预先存在；workflow 不创建、移动或覆盖标签，也拒绝覆盖已有 Release。发布正文固定来自受版本控制的 `RELEASE_NOTES.md`。
+
 serve、RC 和挂载测试默认只能绑定本机回环地址。若操作人员主动把 HTTP、DLNA、WebDAV、FTP、SFTP、S3 或 NFS 暴露到 LAN/公网，必须另行配置协议认证、TLS、主机防火墙和最小 remote root；这不属于后端默认安全边界。

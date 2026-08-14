@@ -19,6 +19,13 @@ case "$dist:$stage" in
     ;;
 esac
 
+for tool in go git tar gzip zip find touch; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "缺少构建依赖：$tool" >&2
+    exit 1
+  fi
+done
+
 rm -rf -- "$dist"
 mkdir -p "$stage"
 
@@ -50,7 +57,7 @@ echo "$targets" | while read -r goos goarch; do
     -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=${plugin_version}-123pan" \
     -o "$binary" ./cmd/rclone-123
   go version -m "$binary" > "$package_dir/BUILDINFO.txt"
-  cp README.md LICENSING.md "$sbom" "$provenance" "$package_dir/"
+  cp README.md RELEASE_NOTES.md LICENSING.md "$sbom" "$provenance" "$package_dir/"
   find "$package_dir" -exec touch -h -d "@$source_epoch" {} +
   if [ "$goos" = windows ]; then
     (cd "$stage" && zip -X -q -r "$dist/$package.zip" "$package")
@@ -65,4 +72,4 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
   (cd "$dist" && shasum -a 256 ./*.tar.gz ./*.zip ./*.json | sort -k2 > SHA256SUMS)
 fi
-echo "internal alpha artifacts written to $dist"
+echo "release artifacts written to $dist"

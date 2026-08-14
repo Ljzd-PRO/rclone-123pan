@@ -1,0 +1,204 @@
+name: 构建并发布 Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 已存在的发布标签，例如 v0.1.0-alpha.1
+        required: true
+        type: string
+      prerelease:
+        description: 标记为预发布版本
+        required: true
+        default: true
+        type: boolean
+      draft:
+        description: 创建为草稿 Release
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: 校验发布标签与说明
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      draft: ${{ steps.release.outputs.draft }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+          fetch-depth: 0
+      - name: 校验标签、提交与发布说明
+        id: release
+        env:
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          REQUESTED_PRERELEASE: ${{ inputs.prerelease }}
+          REQUESTED_DRAFT: ${{ inputs.draft }}
+        run: |
+          tag=$REQUESTED_TAG
+          if ! printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
+            echo "发布标签不符合语义版本格式：$tag" >&2
+            exit 1
+          fi
+          if ! git show-ref --verify --quiet "refs/tags/$tag"; then
+            echo "发布标签不存在：$tag" >&2
+            exit 1
+          fi
+          tag_commit=$(git rev-list -n 1 "$tag")
+          head_commit=$(git rev-parse HEAD)
+          if [ "$tag_commit" != "$head_commit" ]; then
+            echo "检出的提交 $head_commit 与标签提交 $tag_commit 不一致" >&2
+            exit 1
+          fi
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "RELEASE_NOTES.md 不存在或为空" >&2
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            prerelease=$REQUESTED_PRERELEASE
+            draft=$REQUESTED_DRAFT
+          else
+            draft=false
+            case "$tag" in
+              *-*) prerelease=true ;;
+              *) prerelease=false ;;
+            esac
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+
+  quality:
+    name: 完整质量门禁
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.0
+          cache: true
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go test -race ./...
+      - name: 模糊测试严格响应 envelope
+        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=5s
+      - name: 模糊测试上传分片规划
+        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=5s
+      - name: 检查 GitHub Actions workflow
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: 固定版本静态检查
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.4.0
+          args: --timeout=10m
+
+  contract:
+    name: 固定 rclone 契约
+    needs: metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.0
+          cache: true
+      - run: ./tools/test-rclone-contract.sh
+
+  build:
+    name: 构建五平台发布工件
+    needs:
+      - metadata
+      - quality
+      - contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.0
+          cache: true
+      - name: 准备发布归档工具
+        run: |
+          if ! command -v zip >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes zip
+          fi
+      - name: 构建可复现发布工件
+        env:
+          PLUGIN_VERSION: ${{ needs.metadata.outputs.version }}
+        run: ./tools/build-alpha.sh
+      - name: 验证发布工件校验和
+        run: cd dist && sha256sum -c SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ needs.metadata.outputs.tag }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: 发布 GitHub Release
+    needs:
+      - metadata
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-${{ needs.metadata.outputs.tag }}
+          path: dist
+      - name: 再次验证发布工件
+        run: cd dist && sha256sum -c SHA256SUMS
+      - name: 从 RELEASE_NOTES.md 创建 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.tag }}
+          IS_PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
+          IS_DRAFT: ${{ needs.metadata.outputs.draft }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release 已存在，拒绝覆盖：$RELEASE_TAG" >&2
+            exit 1
+          fi
+          flags=(--verify-tag --title "rclone-123pan $RELEASE_TAG" --notes-file RELEASE_NOTES.md)
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            flags+=(--prerelease --latest=false)
+          fi
+          if [ "$IS_DRAFT" = "true" ]; then
+            flags+=(--draft)
+          fi
+          gh release create "$RELEASE_TAG" dist/* "${flags[@]}"
+          gh release view "$RELEASE_TAG" --json url --jq '.url' >> "$GITHUB_STEP_SUMMARY"

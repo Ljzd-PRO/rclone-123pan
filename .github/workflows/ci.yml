@@ -29,6 +29,8 @@ jobs:
         with:
           version: v2.4.0
           args: --timeout=10m
+      - name: 检查 GitHub Actions workflow
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
   contract-tests:
     runs-on: ubuntu-latest
