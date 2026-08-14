@@ -19,9 +19,9 @@ import (
 func newListingTestFs(t *testing.T, handler http.Handler) *Fs {
 	t.Helper()
 	client, _ := testClient(t, handler, "person@example.com", "token")
-	f := &Fs{name: "test", opt: Options{Enc: defaultEncoding}, client: client, uid: 42}
+	f := &Fs{name: "test", opt: Options{Enc: defaultEncoding, RootFolderID: "0"}, client: client, uid: 42}
 	f.dirCache = dircache.New("", "0", f)
-	f.features = (&fs.Features{CanHaveEmptyDirectories: true, PartialUploads: true}).Fill(context.Background(), f)
+	f.features = (&fs.Features{CanHaveEmptyDirectories: true}).Fill(context.Background(), f)
 	return f
 }
 

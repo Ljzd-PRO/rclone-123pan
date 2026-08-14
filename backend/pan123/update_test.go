@@ -184,6 +184,27 @@ func TestRecoverableUpdateHappyPath(t *testing.T) {
 	assertUpdateFinal(t, store, true)
 }
 
+func TestRecoverableUpdateDoesNotDoubleEncodeTargetName(t *testing.T) {
+	store := newUpdateStore(t, nil)
+	const remote = `target\\name `
+	serverName := defaultEncoding.FromStandardName(remote)
+	file := store.files[1]
+	file.FileName = serverName
+	store.files[1] = file
+
+	o := updateTestObject(t, store)
+	o.remote = remote
+	o.name = serverName
+	src := object.NewStaticObjectInfo(remote, time.Now(), 3, true, map[hash.Type]string{hash.MD5: "22af645d1859cb5ca6da0c484f1f37ea"}, nil)
+	if err := o.Update(context.Background(), strings.NewReader("new"), src); err != nil {
+		t.Fatal(err)
+	}
+	files := store.snapshot()
+	if len(files) != 1 || files[2].FileName != serverName {
+		t.Fatalf("target name was not preserved exactly: %#v", files)
+	}
+}
+
 func TestRecoverableUpdateCoordinatesAppliedResponseLoss(t *testing.T) {
 	for _, fault := range []*updateFault{
 		{path: "/b/api" + api.RenamePath, call: 1, after: true},

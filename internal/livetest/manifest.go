@@ -299,6 +299,34 @@ func (m *Manifest) MarkCleanup(id int64, state CleanupState) error {
 	return fmt.Errorf("ledger 中不存在对象 ID %d", id)
 }
 
+// RelocateObject updates only the current parent/name identity of one active
+// ledger object after an ID-verified rename or move. Cleaned objects are
+// immutable because their last visible identity is recovery evidence.
+func (m *Manifest) RelocateObject(id, parentID int64, name string) error {
+	for i := range m.Objects {
+		object := &m.Objects[i]
+		if object.ID != id {
+			continue
+		}
+		cleanup := object.Cleanup
+		if cleanup == "" {
+			cleanup = CleanupActive
+		}
+		if cleanup != CleanupActive {
+			return fmt.Errorf("对象 ID %d 已进入清理流程，不能更新位置", id)
+		}
+		updated := *object
+		updated.ParentID = parentID
+		updated.Name = name
+		if err := validateObject(updated, updated.Kind == KindFile); err != nil {
+			return err
+		}
+		*object = updated
+		return nil
+	}
+	return fmt.Errorf("ledger 中不存在对象 ID %d", id)
+}
+
 // LookupSentinel returns the currently visible object for an expected
 // sentinel. Implementations must perform a fresh provider lookup.
 type LookupSentinel func(context.Context, Object) (Object, error)

@@ -161,15 +161,12 @@ func (f *Fs) findChild(ctx context.Context, parentID int64, leaf string) (*api.F
 	return match, match != nil, nil
 }
 
-// verifyDirectoryPathID walks the logical directory path from the configured
-// root without trusting intermediate dircache entries. Callers use it after
-// acquiring write locks to reject an ID which became stale while waiting.
-func (f *Fs) verifyDirectoryPathID(ctx context.Context, dir string, expectedID int64) error {
-	rootIDString, err := f.dirCache.RootID(ctx, false)
-	if err != nil {
-		return err
-	}
-	currentID, err := parseID(rootIDString, true)
+// verifyAbsoluteDirectoryPathID walks a path relative to root_folder_id
+// without trusting intermediate dircache entries. It is also able to verify a
+// parent outside an Fs command root, which is required by rclone's rooted
+// source/destination objects during DirMove and Rmdir.
+func (f *Fs) verifyAbsoluteDirectoryPathID(ctx context.Context, dir string, expectedID int64) error {
+	currentID, err := parseID(f.opt.RootFolderID, true)
 	if err != nil {
 		return err
 	}
@@ -190,6 +187,15 @@ func (f *Fs) verifyDirectoryPathID(ctx context.Context, dir string, expectedID i
 		return fmt.Errorf("write parent %q changed from ID %d to ID %d", dir, expectedID, currentID)
 	}
 	return nil
+}
+
+// verifyDirectoryPathID verifies a path relative to this Fs command root.
+func (f *Fs) verifyDirectoryPathID(ctx context.Context, dir string, expectedID int64) error {
+	absolute := strings.Trim(path.Join(f.root, dir), "/")
+	if absolute == "." {
+		absolute = ""
+	}
+	return f.verifyAbsoluteDirectoryPathID(ctx, absolute, expectedID)
 }
 
 // FindLeaf implements dircache.DirCacher without creating anything.

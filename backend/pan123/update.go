@@ -259,7 +259,7 @@ func (o *Object) rollbackUpdate(ctx context.Context, stage *Object, stageName st
 }
 
 func (o *Object) updateLocked(ctx context.Context, in io.Reader, src fs.ObjectInfo) error {
-	parentRemote, _ := dircache.SplitPath(o.remote)
+	parentRemote, targetName := dircache.SplitPath(o.remote)
 	if err := o.fs.verifyDirectoryPathID(ctx, parentRemote, o.parentID); err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func (o *Object) updateLocked(ctx context.Context, in io.Reader, src fs.ObjectIn
 		return fmt.Errorf("upload replacement staging object: %w", err)
 	}
 	if err := o.fs.renameByID(ctx, o.parentID, old.FileID, old.FileName, backupName); err != nil {
-		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, nil, backupName, old.FileName)
+		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, nil, backupName, targetName)
 		if rollbackErr != nil {
 			return &RecoveryError{StageID: stage.id, BackupID: old.FileID, Cause: errors.Join(err, rollbackErr)}
 		}
@@ -292,23 +292,23 @@ func (o *Object) updateLocked(ctx context.Context, in io.Reader, src fs.ObjectIn
 	}
 	backup := *old
 	backup.FileName = o.fs.opt.Enc.FromStandardName(backupName)
-	if err := o.fs.renameByID(ctx, o.parentID, stage.id, stageName, old.FileName); err != nil {
-		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, &backup, backupName, old.FileName)
+	if err := o.fs.renameByID(ctx, o.parentID, stage.id, stageName, targetName); err != nil {
+		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, &backup, backupName, targetName)
 		if rollbackErr != nil {
 			return &RecoveryError{StageID: stage.id, BackupID: backup.FileID, Cause: errors.Join(err, rollbackErr)}
 		}
 		return fmt.Errorf("promote staging object: %w", err)
 	}
-	final, err := o.fs.verifyUpload(ctx, o.parentID, old.FileName, stage.id, stage.size, stage.md5)
+	final, err := o.fs.verifyUpload(ctx, o.parentID, targetName, stage.id, stage.size, stage.md5)
 	if err != nil {
-		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, &backup, backupName, old.FileName)
+		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, &backup, backupName, targetName)
 		if rollbackErr != nil {
 			return &RecoveryError{StageID: stage.id, BackupID: backup.FileID, Cause: errors.Join(err, rollbackErr)}
 		}
 		return err
 	}
 	if err := o.fs.trashExact(ctx, o.parentID, backup); err != nil {
-		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, &backup, backupName, old.FileName)
+		rollbackErr := o.rollbackUpdate(ctx, stage, stageName, &backup, backupName, targetName)
 		if rollbackErr != nil {
 			return &RecoveryError{StageID: stage.id, BackupID: backup.FileID, Cause: errors.Join(err, rollbackErr)}
 		}

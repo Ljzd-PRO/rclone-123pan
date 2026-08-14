@@ -336,3 +336,29 @@ func TestDirMoveAndSubtreeGuard(t *testing.T) {
 		t.Fatalf("unexpected directory node %#v", node)
 	}
 }
+
+func TestDirMoveWithRootedCommandFsesVerifiesParentsFromConfiguredRoot(t *testing.T) {
+	store := newMutationStore(t)
+	store.nodes[20] = mutationNode{file: api.File{FileName: "parent", FileID: 20, Type: 1}, parent: 0}
+
+	source := newMutationFs(t, store)
+	source.root = "dir"
+	source.dirCache = dircache.New(source.root, "0", source)
+	if err := source.resolveRoot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	destination := newMutationFs(t, store)
+	destination.root = "parent/nested"
+	destination.dirCache = dircache.New(destination.root, "0", destination)
+	if err := destination.resolveRoot(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := destination.DirMove(context.Background(), source, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	node, found := store.get(10)
+	if !found || node.parent != 20 || node.file.FileName != "nested" {
+		t.Fatalf("unexpected rooted directory move result %#v", node)
+	}
+}

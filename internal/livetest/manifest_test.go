@@ -103,6 +103,27 @@ func TestCleanupStateIsRecordedAndMonotonic(t *testing.T) {
 	}
 }
 
+func TestRelocateObjectPreservesIdentityAndRejectsCleanedObject(t *testing.T) {
+	manifest := validManifest()
+	object := Object{Kind: KindFile, ID: 30, ParentID: 11, Name: "old", Size: 1, MD5: digest("x")}
+	if err := manifest.RecordObject(object); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.RelocateObject(30, 12, "new"); err != nil {
+		t.Fatal(err)
+	}
+	got := manifest.Objects[0]
+	if got.ID != 30 || got.ParentID != 12 || got.Name != "new" || got.Size != object.Size || got.MD5 != object.MD5 {
+		t.Fatalf("relocate changed immutable identity fields: %#v", got)
+	}
+	if err := manifest.MarkCleanup(30, CleanupTrashed); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.RelocateObject(30, 13, "later"); err == nil {
+		t.Fatal("已清理对象仍允许更新位置")
+	}
+}
+
 func TestManifestRejectsCleanedSentinel(t *testing.T) {
 	manifest := validManifest()
 	manifest.Sentinels[0].Cleanup = CleanupMissingConfirmed
