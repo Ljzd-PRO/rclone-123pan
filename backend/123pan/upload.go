@@ -316,7 +316,11 @@ func (f *Fs) uploadNew(ctx context.Context, in io.Reader, src fs.ObjectInfo, par
 	if err != nil {
 		return nil, err
 	}
-	defer prepared.cleanup()
+	defer func() {
+		if cleanupErr := prepared.cleanup(); cleanupErr != nil {
+			fs.Errorf(f, "failed to clean up prepared upload source: %v", cleanupErr)
+		}
+	}()
 	o, upload, err := f.rapidUpload(ctx, parentID, name, prepared, in)
 	if err != nil {
 		return nil, err

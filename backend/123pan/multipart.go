@@ -337,12 +337,16 @@ func (f *Fs) uploadLegacy(ctx context.Context, upload api.UploadData, source *pr
 		options.BaseEndpoint = aws.String(endpoint.String())
 		options.UsePathStyle = true
 	})
+	// The fixed legacy 123Pan credential profile still depends on the stable
+	// manager API. Keep it isolated until that protocol can be captured again.
+	//nolint:staticcheck // compatibility path for legacy temporary S3 credentials
 	uploader := manager.NewUploader(client, func(options *manager.Uploader) {
 		options.PartSize = uploadChunkSize
 		options.Concurrency = f.opt.UploadConcurrency
 		options.LeavePartsOnError = true
 	})
 	hasher := md5.New()
+	//nolint:staticcheck // compatibility path for legacy temporary S3 credentials
 	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(upload.Bucket),
 		Key:           aws.String(upload.Key),

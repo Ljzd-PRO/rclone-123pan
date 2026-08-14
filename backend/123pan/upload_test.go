@@ -36,7 +36,11 @@ func TestPrepareSourceKnownMD5DoesNotRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer prepared.cleanup()
+	t.Cleanup(func() {
+		if err := prepared.cleanup(); err != nil {
+			t.Errorf("cleanup prepared source: %v", err)
+		}
+	})
 	if input.read.Load() != 0 || prepared.md5 != "5d41402abc4b2a76b9719d911017c592" || prepared.size != 5 {
 		t.Fatalf("read=%d source=%#v", input.read.Load(), prepared)
 	}

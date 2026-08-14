@@ -100,7 +100,11 @@ func TestDownloadRangesAndHeaderIsolation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer reader.Close()
+			t.Cleanup(func() {
+				if err := reader.Close(); err != nil {
+					t.Errorf("close reader: %v", err)
+				}
+			})
 			got, err := io.ReadAll(reader)
 			if err != nil {
 				t.Fatal(err)

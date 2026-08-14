@@ -116,7 +116,7 @@ func (o *Object) resolveFinalURL(ctx context.Context, first *url.URL) (*url.URL,
 	if err != nil {
 		return nil, "", err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	referer := first.Scheme + "://" + first.Host + "/"
 	if response.StatusCode == http.StatusFound {
 		location := response.Header.Get("Location")
@@ -234,12 +234,12 @@ func (o *Object) openOnce(ctx context.Context, options []fs.OpenOption) (io.Read
 	rangeHeader, start, end, ranged, err := expectedDownloadRange(options, o.size)
 	_ = rangeHeader
 	if err != nil {
-		response.Body.Close()
+		_ = response.Body.Close()
 		return nil, response.StatusCode, err
 	}
 	expected, err := validateDownloadResponse(response, o.size, start, end, ranged)
 	if err != nil {
-		response.Body.Close()
+		_ = response.Body.Close()
 		return nil, response.StatusCode, err
 	}
 	return &exactReadCloser{inner: response.Body, remaining: expected}, response.StatusCode, nil

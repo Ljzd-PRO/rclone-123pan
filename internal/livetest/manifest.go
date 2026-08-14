@@ -534,7 +534,7 @@ func (m *Manifest) VerifySentinels(ctx context.Context, lookup LookupSentinel) e
 }
 
 // Load reads a strict, owner-only JSON manifest.
-func Load(path string) (*Manifest, error) {
+func Load(path string) (result *Manifest, returnErr error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -549,7 +549,11 @@ func Load(path string) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("关闭 live manifest: %w", closeErr))
+		}
+	}()
 	decoder := json.NewDecoder(io.LimitReader(file, 1<<20))
 	decoder.DisallowUnknownFields()
 	var manifest Manifest
