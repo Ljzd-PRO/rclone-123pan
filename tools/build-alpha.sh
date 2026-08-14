@@ -11,7 +11,15 @@ source_epoch=${SOURCE_DATE_EPOCH:-$(git show -s --format=%ct HEAD)}
 dist="$root/dist"
 stage="$dist/stage"
 
-rm -rf "$dist"
+case "$dist:$stage" in
+  "$root/dist:$root/dist/stage") ;;
+  *)
+    echo "拒绝清理非预期构建路径: $dist / $stage" >&2
+    exit 1
+    ;;
+esac
+
+rm -rf -- "$dist"
 mkdir -p "$stage"
 
 sbom="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}.cdx.json"
@@ -51,7 +59,7 @@ echo "$targets" | while read -r goos goarch; do
   fi
 done
 
-rm -rf "$stage"
+rm -rf -- "$stage"
 if command -v sha256sum >/dev/null 2>&1; then
   (cd "$dist" && sha256sum ./*.tar.gz ./*.zip ./*.json | sort -k2 > SHA256SUMS)
 else
