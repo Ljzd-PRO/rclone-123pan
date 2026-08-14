@@ -34,9 +34,9 @@ jobs:
           cache: true
       - name: 准备发布归档工具
         run: |
-          if ! command -v zip >/dev/null 2>&1; then
+          if ! command -v zip >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
             sudo apt-get update
-            sudo apt-get install --yes zip
+            sudo apt-get install --yes zip dpkg
           fi
       - name: 确定构建版本
         id: version
@@ -49,7 +49,7 @@ jobs:
             short_sha=$(git rev-parse --short=12 HEAD)
             version="0.0.0-alpha.${GITHUB_RUN_NUMBER}.${short_sha}"
           fi
-          if ! printf '%s\n' "$version" | grep -Eq '^[0-9A-Za-z][0-9A-Za-z._+-]*$'; then
+          if ! printf '%s\n' "$version" | grep -Eq '^[0-9][0-9A-Za-z._+-]*$'; then
             echo "非法构建版本：$version" >&2
             exit 1
           fi
@@ -60,6 +60,8 @@ jobs:
         run: ./tools/build-alpha.sh
       - name: 验证校验和
         run: cd dist && sha256sum -c SHA256SUMS
+      - name: 验证 Debian 包
+        run: ./tools/test-deb-packages.sh dist
       - name: 上传工作流工件
         uses: actions/upload-artifact@v7
         with:

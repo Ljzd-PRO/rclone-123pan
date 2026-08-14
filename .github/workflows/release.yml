@@ -130,7 +130,7 @@ jobs:
       - run: ./tools/test-rclone-contract.sh
 
   build:
-    name: 构建五平台发布工件
+    name: 构建五平台与 Debian 发布工件
     needs:
       - metadata
       - quality
@@ -148,9 +148,9 @@ jobs:
           cache: true
       - name: 准备发布归档工具
         run: |
-          if ! command -v zip >/dev/null 2>&1; then
+          if ! command -v zip >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
             sudo apt-get update
-            sudo apt-get install --yes zip
+            sudo apt-get install --yes zip dpkg
           fi
       - name: 构建可复现发布工件
         env:
@@ -158,6 +158,8 @@ jobs:
         run: ./tools/build-alpha.sh
       - name: 验证发布工件校验和
         run: cd dist && sha256sum -c SHA256SUMS
+      - name: 验证 Debian 包
+        run: ./tools/test-deb-packages.sh dist
       - uses: actions/upload-artifact@v7
         with:
           name: release-${{ needs.metadata.outputs.tag }}

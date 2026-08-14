@@ -70,3 +70,34 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: go build -trimpath -tags noselfupdate -o /tmp/rclone-123 ./cmd/rclone-123
+
+  debian-package:
+    name: 构建并安装测试 Debian 包
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PLUGIN_VERSION: 0.0.0-ci.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.25.0
+          cache: true
+      - name: 准备 Debian 打包工具
+        run: |
+          if ! command -v zip >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes zip dpkg
+          fi
+      - name: 构建发布工件与 Debian 包
+        run: ./tools/build-alpha.sh
+      - name: 校验 Debian 包结构
+        run: ./tools/test-deb-packages.sh dist
+      - name: 实际安装并卸载 amd64 Debian 包
+        run: |
+          package="dist/rclone-123pan_${PLUGIN_VERSION}_rclone-v1.75.0_linux_amd64.deb"
+          sudo dpkg --install "$package"
+          test "$(dpkg-query --show --showformat='${Package}' rclone-123pan)" = "rclone-123pan"
+          /usr/bin/rclone-123 version
+          sudo dpkg --remove rclone-123pan
+          test ! -e /usr/bin/rclone-123
