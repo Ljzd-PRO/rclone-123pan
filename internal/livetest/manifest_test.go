@@ -80,6 +80,37 @@ func TestManifestReservationsAreCumulative(t *testing.T) {
 	}
 }
 
+func TestCleanupStateIsRecordedAndMonotonic(t *testing.T) {
+	manifest := validManifest()
+	object := Object{Kind: KindFile, ID: 30, ParentID: 11, Name: "created", Size: 1, MD5: digest("x")}
+	if err := manifest.RecordObject(object); err != nil {
+		t.Fatal(err)
+	}
+	if got := manifest.Objects[0].Cleanup; got != CleanupActive {
+		t.Fatalf("initial cleanup state = %q", got)
+	}
+	if err := manifest.MarkCleanup(30, CleanupTrashed); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.MarkCleanup(30, CleanupMissingConfirmed); err != nil {
+		t.Fatal(err)
+	}
+	if err := manifest.MarkCleanup(30, CleanupTrashed); err == nil {
+		t.Fatal("cleanup state moved backwards")
+	}
+	if err := manifest.MarkCleanup(20, CleanupTrashed); err == nil {
+		t.Fatal("sentinel was accepted as a cleanup target")
+	}
+}
+
+func TestManifestRejectsCleanedSentinel(t *testing.T) {
+	manifest := validManifest()
+	manifest.Sentinels[0].Cleanup = CleanupMissingConfirmed
+	if err := manifest.Validate(); err == nil {
+		t.Fatal("accepted a cleaned sentinel")
+	}
+}
+
 func TestVerifySentinelsFailsClosed(t *testing.T) {
 	manifest := validManifest()
 	err := manifest.VerifySentinels(context.Background(), func(_ context.Context, expected Object) (Object, error) {

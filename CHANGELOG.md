@@ -12,3 +12,4 @@
 - 重建当前 Web 预签上传状态机，要求完整 v2 完成上下文和 `file_info` 映射；后端 1 KiB 上传、完整下载、MD5 与精确软删除真实闭环通过。
 - 固化 `Reuse=true, FileId=0` 秒传线型；只通过父目录内唯一精确元数据匹配协调正 ID，真实复测确认不读取正文、不发数据 PUT且下载内容一致。
 - 收紧 MD5 与能力语义：非法或缺失 ETag 的 `Hash(MD5)` 明确失败，增加 `ParentIDer`，并把 `PartialUploads` 固定为 false。
+- 为真实测试恢复 ledger 增加不可回退的 `active → trashed → missing_confirmed` 清理状态，禁止把哨兵标记为已清理。

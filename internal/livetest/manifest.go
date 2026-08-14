@@ -46,6 +46,16 @@ const (
 	KindDirectory Kind = "directory"
 )
 
+// CleanupState is a monotonic recovery state for objects created by a live
+// campaign. Empty is accepted as the legacy spelling of active.
+type CleanupState string
+
+const (
+	CleanupActive           CleanupState = "active"
+	CleanupTrashed          CleanupState = "trashed"
+	CleanupMissingConfirmed CleanupState = "missing_confirmed"
+)
+
 // Limits are immutable upper bounds for one live-test campaign.
 type Limits struct {
 	MaxFiles       int   `json:"max_files"`
@@ -74,12 +84,13 @@ type Usage struct {
 
 // Object is a non-secret identity record used for verification and recovery.
 type Object struct {
-	Kind     Kind   `json:"kind"`
-	ID       int64  `json:"id"`
-	ParentID int64  `json:"parent_id"`
-	Name     string `json:"name"`
-	Size     int64  `json:"size"`
-	MD5      string `json:"md5,omitempty"`
+	Kind     Kind         `json:"kind"`
+	ID       int64        `json:"id"`
+	ParentID int64        `json:"parent_id"`
+	Name     string       `json:"name"`
+	Size     int64        `json:"size"`
+	MD5      string       `json:"md5,omitempty"`
+	Cleanup  CleanupState `json:"cleanup,omitempty"`
 }
 
 // Manifest authorizes exactly one isolated live-test campaign.
@@ -145,6 +156,11 @@ func validateObject(object Object, requireFileHash bool) error {
 	default:
 		return fmt.Errorf("对象 ID %d 的类型 %q 无效", object.ID, object.Kind)
 	}
+	switch object.Cleanup {
+	case "", CleanupActive, CleanupTrashed, CleanupMissingConfirmed:
+	default:
+		return fmt.Errorf("对象 ID %d 的清理状态 %q 无效", object.ID, object.Cleanup)
+	}
 	return nil
 }
 
@@ -186,6 +202,9 @@ func (m *Manifest) Validate() error {
 	for _, sentinel := range m.Sentinels {
 		if sentinel.Kind != KindFile || sentinel.ParentID != m.AnchorID {
 			return fmt.Errorf("sentinel ID %d 不在 anchor 中或不是文件", sentinel.ID)
+		}
+		if sentinel.Cleanup != "" && sentinel.Cleanup != CleanupActive {
+			return fmt.Errorf("sentinel ID %d 不能标记为已清理", sentinel.ID)
 		}
 		if err := validateObject(sentinel, true); err != nil {
 			return err
@@ -248,8 +267,36 @@ func (m *Manifest) RecordObject(object Object) error {
 			return fmt.Errorf("对象 ID %d 已在 ledger 中", object.ID)
 		}
 	}
+	if object.Cleanup == "" {
+		object.Cleanup = CleanupActive
+	}
 	m.Objects = append(m.Objects, object)
 	return nil
+}
+
+// MarkCleanup advances one ledger object to a stronger cleanup proof. States
+// never move backwards and sentinels are not eligible.
+func (m *Manifest) MarkCleanup(id int64, state CleanupState) error {
+	if state != CleanupTrashed && state != CleanupMissingConfirmed {
+		return fmt.Errorf("目标清理状态 %q 无效", state)
+	}
+	for i := range m.Objects {
+		object := &m.Objects[i]
+		if object.ID != id {
+			continue
+		}
+		current := object.Cleanup
+		if current == "" {
+			current = CleanupActive
+		}
+		rank := map[CleanupState]int{CleanupActive: 0, CleanupTrashed: 1, CleanupMissingConfirmed: 2}
+		if rank[state] < rank[current] {
+			return fmt.Errorf("对象 ID %d 的清理状态不能从 %q 回退到 %q", id, current, state)
+		}
+		object.Cleanup = state
+		return nil
+	}
+	return fmt.Errorf("ledger 中不存在对象 ID %d", id)
 }
 
 // LookupSentinel returns the currently visible object for an expected

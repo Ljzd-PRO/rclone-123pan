@@ -22,7 +22,7 @@ mock 测试覆盖 0/1/16 MiB 边界、10/11 分片批次、10,000 分片上限�
 - `RCLONE_123_LIVE_MANIFEST` 指向权限为 0600 的结构化 manifest；
 - manifest 模式为 `dedicated-contract`，且记录两个 anchor 内、work root 外的不可变 sentinel 文件。
 
-manifest 对文件数、目录数、单文件大小和累计 payload 实施不可放宽的硬配额。每次 upload request 的分配都永久消耗本轮配额；删除对象不会返还配额。manifest 和恢复 ledger 只允许保存对象 ID、parent ID、名称、大小、MD5 和清理状态，不得出现任何凭据或签名 URL。
+manifest 对文件数、目录数、单文件大小和累计 payload 实施不可放宽的硬配额。每次 upload request 的分配都永久消耗本轮配额；删除对象不会返还配额。manifest 和恢复 ledger 只允许保存对象 ID、parent ID、名称、大小、MD5 和单调清理状态 `active → trashed → missing_confirmed`，不得出现任何凭据或签名 URL；哨兵不能标记为已清理。
 
 `tools/test-rclone-contract.sh` 会克隆 commit `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`，向 `backend/all` 添加仅测试使用的 blank import，并使用本地 module replace。无需账号的 CI 会编译固定上游的 `fs/operations`、`fs/sync`、`vfs` 和 `cmd/bisync` 包；提供同样的真实测试门禁后，则会通过仓库中的定制 `test_all` YAML 运行这些测试套件。没有配置任何 ignore 列表。
 
