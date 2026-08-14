@@ -8,6 +8,7 @@ import (
 
 	"github.com/ljzd/rclone-123pan/backend/pan123/api"
 	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/operations"
 )
 
 func mutationSource(f *Fs) *Object {
@@ -197,5 +198,45 @@ func TestCopyRejectsIncompatibleAccountAndInvalidMD5(t *testing.T) {
 	store.mu.Unlock()
 	if calls != 0 {
 		t.Fatalf("invalid Copy reached provider endpoint %d times", calls)
+	}
+}
+
+func TestRcloneOperationsCopyUsesServerSideCopyForCreateAndReplace(t *testing.T) {
+	store := newMutationStore(t)
+	f := newMutationFs(t, store)
+	ctx, _ := fs.AddConfig(context.Background())
+	source := mutationSource(f)
+
+	created, err := operations.Copy(ctx, f, nil, "operations-copy", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdID, _ := parseID(created.(fs.IDer).ID(), false)
+	if createdID == source.id {
+		t.Fatal("operations.Copy did not create an independent provider object")
+	}
+	store.mu.Lock()
+	firstStartCalls := store.copyStartCalls
+	store.mu.Unlock()
+	if firstStartCalls != 1 {
+		t.Fatalf("operations.Copy called provider Copy %d times", firstStartCalls)
+	}
+
+	store.nodes[2] = mutationNode{file: api.File{
+		FileName: "operations-target", FileID: 2, Size: 1, ETag: "415290769594460e2e485922904f345d",
+	}, parent: 0}
+	destination := newObject(f, "operations-target", 0, store.nodes[2].file)
+	replaced, err := operations.Copy(ctx, f, destination, "ignored-by-rclone", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replaced.Remote() != "operations-target" || replaced.(fs.IDer).ID() == "2" {
+		t.Fatalf("unexpected operations.Copy replacement %#v", replaced)
+	}
+	if _, found := store.get(2); found {
+		t.Fatal("operations.Copy retained the old target ID after verified replacement")
+	}
+	if _, found := store.get(1); !found {
+		t.Fatal("operations.Copy removed the source after replacement")
 	}
 }
