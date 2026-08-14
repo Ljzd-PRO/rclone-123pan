@@ -146,6 +146,7 @@
       "uploadId"
     ],
     "calls_per_upload": 1,
+    "file_id_may_differ_from_upload_request": true,
     "response": {
       "code": 0,
       "data_key": "file_info",

@@ -337,6 +337,28 @@ func TestPresignedRequiresCompleteFileInfo(t *testing.T) {
 	}
 }
 
+func TestPresignedAcceptsExplicitCompletionFileIDMapping(t *testing.T) {
+	digest := md5.Sum([]byte("x"))
+	sum := hex.EncodeToString(digest[:])
+	h := &presignedHarness{
+		t:     t,
+		parts: make(map[int64][]byte),
+		completeFile: &api.File{
+			FileID: 99,
+			Size:   1,
+			ETag:   sum,
+		},
+	}
+	f := newPresignedTestFs(t, h)
+	completed, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, &preparedSource{reader: strings.NewReader("x"), size: 1, md5: sum})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed == nil || completed.FileID != 99 {
+		t.Fatalf("completion mapping = %#v, want file ID 99", completed)
+	}
+}
+
 func TestPresignedCompletionIsNeverReplayed(t *testing.T) {
 	h := &presignedHarness{t: t, parts: make(map[int64][]byte), completeStatus: http.StatusInternalServerError}
 	f := newPresignedTestFs(t, h)

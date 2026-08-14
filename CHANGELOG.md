@@ -13,3 +13,5 @@
 - 固化 `Reuse=true, FileId=0` 秒传线型；只通过父目录内唯一精确元数据匹配协调正 ID，真实复测确认不读取正文、不发数据 PUT且下载内容一致。
 - 收紧 MD5 与能力语义：非法或缺失 ETag 的 `Hash(MD5)` 明确失败，增加 `ParentIDer`，并把 `PartialUploads` 固定为 false。
 - 为真实测试恢复 ledger 增加不可回退的 `active → trashed → missing_confirmed` 清理状态，禁止把哨兵标记为已清理。
+- 真实通过 0、1、16 MiB−1、16 MiB 和 16 MiB+1 上传边界及完整下载校验；固化完成响应可把预申请 ID 映射为不同最终 ID 的契约。
+- 真实验证 16 MiB+1 完整下载、前缀 Range、Seek、suffix-range 和路径大小写敏感行为。
