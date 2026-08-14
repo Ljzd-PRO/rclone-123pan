@@ -15,7 +15,6 @@ func TestFeatureGolden(t *testing.T) {
 		"DirMove":                 true,
 		"Disconnect":              true,
 		"Move":                    true,
-		"PartialUploads":          true,
 		"PutStream":               true,
 		"UserInfo":                true,
 	}
@@ -28,5 +27,15 @@ func TestFeatureGolden(t *testing.T) {
 		if _, found := features[name]; !found {
 			t.Errorf("feature golden contains unknown feature %s", name)
 		}
+	}
+	featuresObject := buildFeatures(context.Background(), &Fs{})
+	if featuresObject.PartialUploads {
+		t.Fatal("PartialUploads must remain false until incomplete-object visibility is proven")
+	}
+	if featuresObject.SlowHash {
+		t.Fatal("ETag-backed MD5 must remain a fast hash")
+	}
+	if featuresObject.Copy != nil || featuresObject.Purge != nil || featuresObject.ListR != nil {
+		t.Fatal("unsupported optional interfaces were advertised")
 	}
 }

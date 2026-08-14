@@ -13,10 +13,12 @@
 | Update | staging/backup 状态机；回滚不完整时返回精确恢复 ID |
 | Remove | 只移入回收站，不永久删除 |
 | Move、DirMove | 仅限同一 UID；移动和改名分步执行并按 ID 回滚 |
-| Hash | MD5 来自对象 ETag；非法或缺失值必须失败关闭 |
+| Hash | 快速 MD5 来自对象 ETag；非法或缺失值返回明确协议错误 |
 | About、UserInfo、Disconnect | 使用个人盘账号信息和登出接口 |
 | DirCacheFlush | 清空 ID 路径缓存 |
 | Command | 提供离线任务 add/status/delete |
+
+对象实现 `IDer` 与 `ParentIDer`。特征固定为 `PartialUploads=false`、`SlowHash=false`、`DuplicateFiles=false`、`CaseInsensitive=false`；feature golden 会防止 core 反射意外启用未支持接口。
 
 ## rclone core 回退
 

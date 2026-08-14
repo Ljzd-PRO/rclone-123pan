@@ -11,3 +11,4 @@
 - 通过 2026-08-15 官方 Web 脱敏抓线确认当前控制域名、单片与多片端点顺序和 `upload_complete/v2` 完成结构；确认先前加入的 S3 merge、旧 complete 与固定等待没有协议证据，进入移除修复。
 - 重建当前 Web 预签上传状态机，要求完整 v2 完成上下文和 `file_info` 映射；后端 1 KiB 上传、完整下载、MD5 与精确软删除真实闭环通过。
 - 固化 `Reuse=true, FileId=0` 秒传线型；只通过父目录内唯一精确元数据匹配协调正 ID，真实复测确认不读取正文、不发数据 PUT且下载内容一致。
+- 收紧 MD5 与能力语义：非法或缺失 ETag 的 `Hash(MD5)` 明确失败，增加 `ParentIDer`，并把 `PartialUploads` 固定为 false。

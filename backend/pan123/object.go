@@ -58,10 +58,14 @@ func (o *Object) ModTime(context.Context) time.Time { return o.modTime }
 func (o *Object) Size() int64                       { return o.size }
 func (o *Object) Storable() bool                    { return true }
 func (o *Object) ID() string                        { return strconv.FormatInt(o.id, 10) }
+func (o *Object) ParentID() string                  { return strconv.FormatInt(o.parentID, 10) }
 
 func (o *Object) Hash(_ context.Context, ty hash.Type) (string, error) {
 	if ty != hash.MD5 {
 		return "", hash.ErrUnsupported
+	}
+	if o.md5 == "" {
+		return "", errorsNewProtocol("file metadata is missing a valid MD5 ETag")
 	}
 	return o.md5, nil
 }
@@ -70,3 +74,4 @@ func (o *Object) SetModTime(context.Context, time.Time) error { return fs.ErrorC
 
 var _ fs.Object = (*Object)(nil)
 var _ fs.IDer = (*Object)(nil)
+var _ fs.ParentIDer = (*Object)(nil)

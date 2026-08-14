@@ -30,6 +30,6 @@ manifest 对文件数、目录数、单文件大小和累计 payload 实施不�
 
 手动触发的内部 alpha 工作流通过 `tools/build-alpha.sh`，使用 Go 1.25.0、`CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false` 和强制 `noselfupdate` 交叉编译五个支持目标。脚本会把归档文件的所有者和时间戳统一为源码 commit，移除 gzip/zip 元数据，生成确定性的 CycloneDX 1.6 module SBOM 与来源记录，并校验 `SHA256SUMS`。artifact 保持私有且七天后过期；工作流没有 release 或 package 写权限。
 
-2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片线型。Web 对象可见不等于后端闭环已经通过；生产状态机修复后仍必须从一个全新 1 KiB 文件开始，完成列表、完整下载 MD5、按精确 ID 软删除和双哨兵复核，才能继续更新、移动、离线任务、mount 或完整 rclone 契约测试。详细记录见[真实账号测试记录](live-testing.md)。
+2026-08-15 已在同一授权账号的全新随机 anchor 中，通过官方 Web 上传新建的 1 KiB 和 16 MiB+1 文件并取得脱敏的单片/多片/秒传线型。修复后的后端已经完成 1 KiB 普通上传、秒传、完整下载 MD5、精确软删除、双哨兵复核，以及同尺寸不同内容的 `check --checksum` 只读回归。16 MiB+1 后端多片、更新、移动、离线任务、mount 和完整 rclone 契约测试仍须按门禁继续。详细记录见[真实账号测试记录](live-testing.md)。
 
 在获得专用空测试账号、隔离的非零根目录和两个根外不可变 sentinel 前，稳定版发布仍保持阻断。后续真实测试必须只在随机命名的 `rclone-test-[a-z0-9]{12}` 目录中操作，并且只清理由本轮记录的 ID。

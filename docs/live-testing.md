@@ -27,6 +27,7 @@
 4. 用相同内容和新名称测试秒传时，首次后端按原规则因 `Reuse=true, FileId=0` 失败关闭，work 中没有目标或 partial 残留；
 5. 官方 Web 随后确认零 ID 秒传只执行 `upload_request → list → file/info`，数据 PUT 和完成调用均为零；
 6. 后端据此只通过父目录内唯一的名称/大小/MD5 对象协调正 ID，复测成功；完整下载仍与源逐字节一致，哨兵不变。
+7. 使用一个同样为 1024 字节但 MD5 不同的本地文件执行只读 `rclone check --checksum`，命令以 `md5 differ` 和非零状态正确报告差异，没有把同尺寸误判为相同。
 
 本轮累计分配仍远低于 100 文件、50 目录、单文件 160 MiB+1 和 512 MiB payload 硬预算。16 MiB+1 后端多片、更新、移动、bisync、VFS 和挂载测试尚未执行。
 

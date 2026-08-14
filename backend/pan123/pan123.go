@@ -56,7 +56,7 @@ func buildFeatures(ctx context.Context, f *Fs) *fs.Features {
 	return (&fs.Features{
 		CaseInsensitive:         false,
 		CanHaveEmptyDirectories: true,
-		PartialUploads:          true,
+		PartialUploads:          false,
 		DuplicateFiles:          false,
 	}).Fill(ctx, f)
 }

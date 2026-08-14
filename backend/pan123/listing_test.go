@@ -166,7 +166,7 @@ func TestListRejectsStalledNextAndPartialTermination(t *testing.T) {
 
 func TestObjectMD5Validation(t *testing.T) {
 	const upper = "D41D8CD98F00B204E9800998ECF8427E"
-	o := newObject(&Fs{}, "x", 0, api.File{FileID: 1, ETag: upper})
+	o := newObject(&Fs{}, "x", 42, api.File{FileID: 1, ETag: upper})
 	got, err := o.Hash(context.Background(), hash.MD5)
 	if err != nil || got != "d41d8cd98f00b204e9800998ecf8427e" {
 		t.Fatalf("got %q, %v", got, err)
@@ -175,6 +175,13 @@ func TestObjectMD5Validation(t *testing.T) {
 		if got := normalizeMD5(invalid); got != "" {
 			t.Fatalf("accepted invalid ETag %q as %q", invalid, got)
 		}
+		invalidObject := newObject(&Fs{}, "invalid", 42, api.File{FileID: 2, ETag: invalid})
+		if got, err := invalidObject.Hash(context.Background(), hash.MD5); err == nil || got != "" {
+			t.Fatalf("Hash accepted invalid ETag %q as %q, %v", invalid, got, err)
+		}
+	}
+	if o.ParentID() != "42" {
+		t.Fatalf("ParentID = %q, want 42", o.ParentID())
 	}
 	if _, err := o.Hash(context.Background(), hash.SHA1); err != hash.ErrUnsupported {
 		t.Fatalf("got %v, want unsupported hash", err)
