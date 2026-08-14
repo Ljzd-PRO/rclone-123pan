@@ -11,6 +11,7 @@ func TestFeatureGolden(t *testing.T) {
 		"About":                   true,
 		"CanHaveEmptyDirectories": true,
 		"Command":                 true,
+		"Copy":                    true,
 		"DirCacheFlush":           true,
 		"DirMove":                 true,
 		"Disconnect":              true,
@@ -35,7 +36,10 @@ func TestFeatureGolden(t *testing.T) {
 	if featuresObject.SlowHash {
 		t.Fatal("ETag-backed MD5 must remain a fast hash")
 	}
-	if featuresObject.Copy != nil || featuresObject.Purge != nil || featuresObject.ListR != nil {
+	if featuresObject.Copy == nil {
+		t.Fatal("server-side Copy must be advertised")
+	}
+	if featuresObject.Purge != nil || featuresObject.ListR != nil {
 		t.Fatal("unsupported optional interfaces were advertised")
 	}
 }

@@ -22,6 +22,8 @@ const (
 	SingleObjectAuthPath  = "/file/s3_upload_object/auth"
 	S3ListUploadPartsPath = "/file/s3_list_upload_parts"
 	UploadCompleteV2Path  = "/file/upload_complete/v2"
+	CopyStartPath         = "/restful/goapi/v1/file/copy/async"
+	CopyTaskPath          = "/restful/goapi/v1/file/copy/task"
 	OfflineResolvePath    = "/v2/offline_download/task/resolve"
 	OfflineSubmitPath     = "/v2/offline_download/task/submit"
 	OfflineTaskListPath   = "/offline_download/task/list"
@@ -131,6 +133,38 @@ type UploadCompleteV2Request struct {
 // UploadCompleteData contains the explicit terminal object mapping.
 type UploadCompleteData struct {
 	FileInfo File `json:"file_info"`
+}
+
+// CopyFile is the exact source identity sent by the current official Web
+// client. Copy only accepts one file even though the wire shape is a list.
+type CopyFile struct {
+	FileID       int64  `json:"fileId"`
+	Size         int64  `json:"size"`
+	ETag         string `json:"etag"`
+	Type         int    `json:"type"`
+	ParentFileID int64  `json:"parentFileId"`
+	FileName     string `json:"fileName"`
+	DriveID      int    `json:"driveId"`
+}
+
+// CopyRequest starts a provider-side copy into a destination directory.
+type CopyRequest struct {
+	FileList     []CopyFile `json:"fileList"`
+	TargetFileID int64      `json:"targetFileId"`
+}
+
+// CopyStartData selects immediate completion (mode 2) or an asynchronous task.
+// Mode is a pointer so a missing field cannot silently become status zero.
+type CopyStartData struct {
+	Mode   *int  `json:"mode"`
+	TaskID int64 `json:"taskId"`
+}
+
+// CopyTaskData is returned while polling an asynchronous copy task. The
+// official Web client treats statuses 0 and 1 as pending and 2 as success.
+type CopyTaskData struct {
+	Status *int   `json:"status"`
+	Reason string `json:"reason"`
 }
 
 // PresignedURLsData maps one-based part numbers to short-lived PUT URLs.

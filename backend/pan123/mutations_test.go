@@ -23,12 +23,21 @@ type mutationNode struct {
 }
 
 type mutationStore struct {
-	t          *testing.T
-	mu         sync.Mutex
-	nodes      map[int64]mutationNode
-	nextID     int64
-	mkdirAfter bool
-	listCalls  map[int64]int
+	t                  *testing.T
+	mu                 sync.Mutex
+	nodes              map[int64]mutationNode
+	nextID             int64
+	mkdirAfter         bool
+	listCalls          map[int64]int
+	copyMode           int
+	copyStatuses       []int
+	copyTaskCalls      int
+	copyStartCalls     int
+	copyLoseStart      bool
+	copyNoMaterialize  bool
+	copyCorrupt        bool
+	lastCopyRequest    api.CopyRequest
+	pendingCopyRequest *api.CopyRequest
 }
 
 func newMutationStore(t *testing.T) *mutationStore {
@@ -40,7 +49,33 @@ func newMutationStore(t *testing.T) *mutationStore {
 		},
 		nextID:    100,
 		listCalls: make(map[int64]int),
+		copyMode:  2,
 	}
+}
+
+func (s *mutationStore) materializeCopy(request api.CopyRequest) {
+	if s.copyNoMaterialize || len(request.FileList) != 1 {
+		return
+	}
+	source, found := s.nodes[request.FileList[0].FileID]
+	target, targetFound := s.nodes[request.TargetFileID]
+	if !found || !targetFound || !target.file.IsDir() {
+		return
+	}
+	for _, node := range s.nodes {
+		if node.parent == request.TargetFileID && node.file.FileName == source.file.FileName {
+			return
+		}
+	}
+	id := s.nextID
+	s.nextID++
+	file := source.file
+	file.FileID = id
+	file.ParentFileID = request.TargetFileID
+	if s.copyCorrupt {
+		file.ETag = "00000000000000000000000000000000"
+	}
+	s.nodes[id] = mutationNode{file: file, parent: request.TargetFileID}
 }
 
 func (s *mutationStore) handler() http.Handler {
@@ -54,7 +89,9 @@ func (s *mutationStore) handler() http.Handler {
 			files := make([]api.File, 0)
 			for _, node := range s.nodes {
 				if node.parent == parent {
-					files = append(files, node.file)
+					file := node.file
+					file.ParentFileID = parent
+					files = append(files, file)
 				}
 			}
 			sort.Slice(files, func(i, j int) bool { return files[i].FileID > files[j].FileID })
@@ -119,6 +156,40 @@ func (s *mutationStore) handler() http.Handler {
 				}
 			}
 			writeEnvelope(s.t, w, 0, nil)
+		case "/b/api" + api.CopyStartPath:
+			s.copyStartCalls++
+			var request api.CopyRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				s.t.Error(err)
+			}
+			s.lastCopyRequest = request
+			if s.copyMode == 2 {
+				s.materializeCopy(request)
+			} else {
+				copy := request
+				s.pendingCopyRequest = &copy
+			}
+			if s.copyLoseStart {
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]any{"code": 500, "message": "lost Copy response"})
+				return
+			}
+			writeEnvelope(s.t, w, 0, map[string]any{"mode": s.copyMode, "taskId": 77})
+		case "/b/api" + api.CopyTaskPath:
+			if r.URL.Query().Get("taskId") != "77" {
+				s.t.Errorf("unexpected Copy task ID %q", r.URL.Query().Get("taskId"))
+			}
+			status := 2
+			if len(s.copyStatuses) != 0 {
+				index := min(s.copyTaskCalls, len(s.copyStatuses)-1)
+				status = s.copyStatuses[index]
+			}
+			s.copyTaskCalls++
+			if status == 2 && s.pendingCopyRequest != nil {
+				s.materializeCopy(*s.pendingCopyRequest)
+				s.pendingCopyRequest = nil
+			}
+			writeEnvelope(s.t, w, 0, map[string]any{"status": status, "reason": "mock task failure"})
 		default:
 			s.t.Errorf("unexpected path %q", r.URL.Path)
 			http.NotFound(w, r)
@@ -136,13 +207,18 @@ func (s *mutationStore) get(id int64) (mutationNode, bool) {
 func newMutationFs(t *testing.T, store *mutationStore) *Fs {
 	t.Helper()
 	client, _ := testClient(t, store.handler(), "person@example.com", "token")
+	var stageCounter int
 	f := &Fs{
-		name:      "test",
-		opt:       Options{Enc: defaultEncoding, RootFolderID: "0", VerifyTimeout: fs.Duration(time.Second)},
-		client:    client,
-		uid:       42,
-		locks:     newKeyedLocks(),
-		stageName: func(string) (string, error) { return "rclone-123pan-move-fixed", nil },
+		name:   "test",
+		opt:    Options{Enc: defaultEncoding, RootFolderID: "0", VerifyTimeout: fs.Duration(time.Second)},
+		client: client,
+		uid:    42,
+		locks:  newKeyedLocks(),
+		stageName: func(prefix string) (string, error) {
+			stageCounter++
+			return fmt.Sprintf("rclone-123pan-%s-fixed-%d", prefix, stageCounter), nil
+		},
+		copyPollInterval: time.Millisecond,
 	}
 	f.dirCache = dircache.New("", "0", f)
 	f.features = (&fs.Features{CanHaveEmptyDirectories: true}).Fill(context.Background(), f)

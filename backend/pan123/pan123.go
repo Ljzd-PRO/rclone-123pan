@@ -77,16 +77,17 @@ type Options struct {
 
 // Fs represents a 123Pan personal-account remote.
 type Fs struct {
-	name           string
-	root           string
-	opt            Options
-	client         *apiClient
-	features       *fs.Features
-	dirCache       *dircache.DirCache
-	uid            int64
-	downloadClient *http.Client
-	locks          *keyedLocks
-	stageName      func(string) (string, error)
+	name             string
+	root             string
+	opt              Options
+	client           *apiClient
+	features         *fs.Features
+	dirCache         *dircache.DirCache
+	uid              int64
+	downloadClient   *http.Client
+	locks            *keyedLocks
+	stageName        func(string) (string, error)
+	copyPollInterval time.Duration
 }
 
 // NewFs constructs and validates a personal-account remote.
@@ -283,6 +284,7 @@ var _ fs.Abouter = (*Fs)(nil)
 var _ fs.UserInfoer = (*Fs)(nil)
 var _ fs.DirCacheFlusher = (*Fs)(nil)
 var _ fs.PutStreamer = (*Fs)(nil)
+var _ fs.Copier = (*Fs)(nil)
 var _ fs.Mover = (*Fs)(nil)
 var _ fs.DirMover = (*Fs)(nil)
 var _ fs.Commander = (*Fs)(nil)
