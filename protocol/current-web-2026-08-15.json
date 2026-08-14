@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "capture": {
+    "date": "2026-08-15",
+    "ui_origin": "https://yun.123pan.cn",
+    "api_origin": "https://api.123278.com",
+    "account_scope": "用户授权的个人盘账号",
+    "isolation": "全新随机 anchor；两个小型哨兵位于 work 目录外；协议文件位于全新 work 目录",
+    "raw_capture_persisted": false,
+    "sanitized": true
+  },
+  "control_headers": {
+    "app_version": "3",
+    "platform": "web",
+    "referer_origin": "https://yun.123pan.cn/"
+  },
+  "upload_request": {
+    "method": "POST",
+    "path": "/b/api/file/upload_request",
+    "body": {
+      "RequestSource": null,
+      "driveId": 0,
+      "etag": "<md5>",
+      "fileName": "<test-file-name>",
+      "parentFileId": "<positive-json-number>",
+      "size": "<non-negative-json-number>",
+      "type": 0
+    },
+    "absent_body_keys": [
+      "duplicate"
+    ]
+  },
+  "single_1024_bytes": {
+    "reuse": false,
+    "steps": [
+      {
+        "method": "POST",
+        "path": "/b/api/file/upload_request"
+      },
+      {
+        "method": "POST",
+        "path": "/b/api/file/s3_upload_object/auth",
+        "part_number_start": 1,
+        "part_number_end_exclusive": 2
+      },
+      {
+        "method": "PUT",
+        "target": "<presigned-url>",
+        "authorization_header_present": false,
+        "referer": "https://yun.123pan.cn/",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/b/api/file/upload_complete/v2",
+        "is_multipart": false
+      }
+    ]
+  },
+  "multipart_16777217_bytes": {
+    "reuse": false,
+    "slice_size_response_type": "string",
+    "steps": [
+      {
+        "method": "POST",
+        "path": "/b/api/file/upload_request"
+      },
+      {
+        "method": "POST",
+        "path": "/b/api/file/s3_list_upload_parts",
+        "response_data": {
+          "Parts": null
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/b/api/file/s3_repare_upload_parts_batch",
+        "part_number_start": 1,
+        "part_number_end_exclusive": 2,
+        "returned_part_keys": [
+          "1"
+        ]
+      },
+      {
+        "method": "PUT",
+        "part_number": 1,
+        "target": "<presigned-url>",
+        "authorization_header_present": false,
+        "referer": "https://yun.123pan.cn/",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/b/api/file/s3_repare_upload_parts_batch",
+        "part_number_start": 2,
+        "part_number_end_exclusive": 3,
+        "returned_part_keys": [
+          "2"
+        ]
+      },
+      {
+        "method": "PUT",
+        "part_number": 2,
+        "target": "<presigned-url>",
+        "authorization_header_present": false,
+        "referer": "https://yun.123pan.cn/",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/b/api/file/upload_complete/v2",
+        "is_multipart": true
+      }
+    ]
+  },
+  "complete": {
+    "body_keys": [
+      "StorageNode",
+      "bucket",
+      "fileId",
+      "fileSize",
+      "isMultipart",
+      "key",
+      "uploadId"
+    ],
+    "calls_per_upload": 1,
+    "response": {
+      "code": 0,
+      "data_key": "file_info",
+      "identity_fields": [
+        "FileId",
+        "ParentFileId",
+        "FileName",
+        "Size",
+        "Etag",
+        "Type"
+      ]
+    }
+  },
+  "negative_evidence": {
+    "paths_not_called": [
+      "/b/api/file/s3_complete_multipart_upload",
+      "/b/api/file/upload_complete"
+    ],
+    "fixed_wait_observed": false,
+    "profile_fallback_observed": false
+  }
+}

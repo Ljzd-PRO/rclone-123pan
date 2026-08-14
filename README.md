@@ -3,7 +3,7 @@
 本仓库用于构建定制的 `rclone-123` 二进制，其中包含面向 123 网盘个人账号的实验性树外后端。
 
 > [!WARNING]
-> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-14 的隔离真实账号冒烟测试已证明登录、列表、建目录和安全删目录可用，但当前个人盘上传协议发生漂移，所有小文件上传均失败关闭；不适合公开发布或生产使用。
+> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-15 已通过官方 Web 脱敏抓线闭合当前单片和多片上传协议，但生产上传状态机尚在按新证据重建；在低层真实闭环通过前仍不适合公开发布或生产使用。
 
 ## 固定基线
 
@@ -23,12 +23,12 @@
 | 严格列表、路径解析、MD5、配额和用户信息 | 已实现并通过单元测试 |
 | 验证式下载、Range/Seek/后缀范围、单次 403 刷新 | 已实现并通过单元测试 |
 | 可重放输入源、零字节处理和验证式秒传 | 已实现并通过单元测试 |
-| AWS SDK v2 旧式上传和有界预签名分片上传 | mock 已通过；当前真实个人盘上传失败，阻断 |
+| AWS SDK v2 旧式上传和有界预签名分片上传 | 当前官方 Web 协议已取证；生产状态机修复中，阻断 |
 | 可恢复的 staging/backup 对象替换 | 已实现并通过故障测试 |
 | 安全的 mkdir/remove/rmdir 和按 ID 验证的 Move/DirMove | 已实现并通过单元测试 |
 | 离线任务 add/status/delete 后端命令 | 已实现并通过单元测试 |
 | 故障 transport、受门禁保护的 fstests、固定 rclone 契约注入 | 已实现 |
-| 隔离真实账号冒烟测试 | 已执行；上传协议漂移，未通过 |
+| 隔离真实账号测试 | 官方 Web 单片/多片上传已形成可见对象；后端闭环待修复验证 |
 | 专用空账号完整契约测试 | 阻断：尚无满足 sentinel 门禁的专用账号 |
 | 公开发布 | 阻断：许可证审查和真实环境验证未完成 |
 
@@ -62,7 +62,7 @@ make build
 
 本后端有意不提供服务端 `Copy` 或 `Purge`。rclone core 会回退到 `Put`（仍可通过 MD5 命中秒传）以及逐 ID 删除。当前也不实现链接、分享、公开链接、修改时间写入、`ListR`、清理、变更通知和永久删除。
 
-预期行为和发布门禁详见[后端说明](docs/123pan.md)、[rclone 能力清单](docs/capabilities.md)、[安全说明](docs/security.md)和[测试说明](docs/testing.md)。2026-08-14 的隔离实测证据见[真实账号测试记录](docs/live-testing.md)，替换失败后的处理见[恢复与回滚](docs/recovery.md)。
+预期行为和发布门禁详见[后端说明](docs/123pan.md)、[rclone 能力清单](docs/capabilities.md)、[安全说明](docs/security.md)和[测试说明](docs/testing.md)。隔离实测及官方 Web 脱敏协议证据见[真实账号测试记录](docs/live-testing.md)和[协议证据夹具](protocol/README.md)，替换失败后的处理见[恢复与回滚](docs/recovery.md)。
 
 `make contract` 会临时克隆精确的 rclone commit，把本模块注入其 `backend/all`，并编译上游 operations、sync、VFS 和 bisync 测试包。只有在明确提供全部真实测试门禁变量后，才会运行具有破坏性的 `test_all`。
 

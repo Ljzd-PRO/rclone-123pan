@@ -10,6 +10,8 @@ rclone v1.75.0 要求每个已注册后端的文档都嵌入 rclone 自身的 `d
 
 ## 当前个人盘 API 漂移
 
-OpenList v4.2.5 的个人盘 driver 直接使用 `yun.123pan.com/b/api`，并把 `Reuse=true` 当作秒传成功，预签数据完成后调用 `/file/upload_complete/v2`。2026-08-14 的真实账号测试表明，当前服务可能同时返回 `Reuse=true` 和上传 key，但对应文件 ID 不可见；完成端点返回成功也不能证明对象已经生成。
+OpenList v4.2.5 的个人盘 driver 使用 `https://yun.123pan.com/b/api`。2026-08-15 的官方 Web 脱敏抓线确认当前控制 API 已改为 `https://api.123278.com/b/api`，页面来源为 `https://yun.123pan.cn/`。
 
-近期社区客户端改为显式调用 `s3_complete_multipart_upload` 后再调用旧式 `upload_complete`，但本项目在单分片授权流程上实测该合并端点返回业务码 500。该差异必须通过当前 Web 客户端的完整线型和专用账号重新验证，不能靠放宽终态校验绕过。
+固定 OpenList 与当前 Web 都在预签数据 PUT 后只调用 `/file/upload_complete/v2`，请求包含 `StorageNode`、`bucket`、`fileId`、`fileSize`、`isMultipart`、`key` 和 `uploadId`。当前 Web 没有调用 `s3_complete_multipart_upload`、旧式 `upload_complete` 或固定等待。单片使用 `s3_upload_object/auth`；16 MiB+1 的实测多片上传先查询 `s3_list_upload_parts`，再按独占上界申请分片 URL，最后只调用一次 v2 完成接口。
+
+当前 Web 的 `upload_request` 还要求 `parentFileId` 为 JSON number、`RequestSource=null`，且没有发送 `duplicate`。这些协议事实已固化为脱敏 fixture；实现仍不能把 `Reuse=true`、PUT 200 或完成接口 `code=0` 单独视为成功，必须严格核验最终对象。

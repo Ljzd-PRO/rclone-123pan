@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "source": {
+    "project": "OpenList",
+    "tag": "v4.2.5",
+    "commit": "cc87e88f038a5a27c8782afc7b66a3c1a3cdcb77",
+    "scope": [
+      "drivers/123/driver.go",
+      "drivers/123/types.go",
+      "drivers/123/upload.go",
+      "drivers/123/util.go"
+    ]
+  },
+  "license_boundary": {
+    "source_license": "AGPL-3.0",
+    "method": "仅提取协议事实和测试向量；未复制函数体、注释或表达性结构"
+  },
+  "observed_profile": {
+    "api_origin": "https://yun.123pan.com/b/api",
+    "chunk_size_bytes": 16777216,
+    "single": {
+      "authorization_path": "/file/s3_upload_object/auth",
+      "part_number_start": 1,
+      "part_number_end_exclusive": 2,
+      "put_count": 1,
+      "complete_path": "/file/upload_complete/v2",
+      "is_multipart": false
+    },
+    "multipart": {
+      "authorization_path": "/file/s3_repare_upload_parts_batch",
+      "maximum_requested_urls_per_batch": 10,
+      "complete_path": "/file/upload_complete/v2",
+      "is_multipart": true
+    },
+    "complete_body_keys": [
+      "StorageNode",
+      "bucket",
+      "fileId",
+      "fileSize",
+      "isMultipart",
+      "key",
+      "uploadId"
+    ],
+    "declared_but_not_called_by_drivers_123_upload": [
+      "/file/s3_complete_multipart_upload"
+    ]
+  }
+}
