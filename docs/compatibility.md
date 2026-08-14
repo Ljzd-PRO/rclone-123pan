@@ -15,3 +15,5 @@ OpenList v4.2.5 的个人盘 driver 使用 `https://yun.123pan.com/b/api`。2026
 固定 OpenList 与当前 Web 都在预签数据 PUT 后只调用 `/file/upload_complete/v2`，请求包含 `StorageNode`、`bucket`、`fileId`、`fileSize`、`isMultipart`、`key` 和 `uploadId`。当前 Web 没有调用 `s3_complete_multipart_upload`、旧式 `upload_complete` 或固定等待。单片使用 `s3_upload_object/auth`；16 MiB+1 的实测多片上传先查询 `s3_list_upload_parts`，再按独占上界申请分片 URL，最后只调用一次 v2 完成接口。
 
 当前 Web 的 `upload_request` 还要求 `parentFileId` 为 JSON number、`RequestSource=null`，且没有发送 `duplicate`。这些协议事实已固化为脱敏 fixture；实现仍不能把 `Reuse=true`、PUT 200 或完成接口 `code=0` 单独视为成功，必须严格核验最终对象。
+
+同 MD5 异名秒传还有一个独立响应形状：当前 Web 返回 `Reuse=true`、`FileId=0` 和非空 key，但不发数据 PUT，也不调用完成接口；随后重新列表并使用新出现的正 ID 查询对象。后端只在目标父目录中恰有一个名称、大小和 MD5 全部匹配的正 ID 文件时接受该候选。0 ID 永远不会进入删除、移动、重命名或数据上传请求。

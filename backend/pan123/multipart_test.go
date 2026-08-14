@@ -6,6 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,18 +49,22 @@ func TestUploadPartPlanBoundaries(t *testing.T) {
 }
 
 type presignedHarness struct {
-	t         *testing.T
-	urlCalls  atomic.Int64
-	putCalls  atomic.Int64
-	merge     atomic.Int64
-	complete  atomic.Int64
-	forbidOne atomic.Bool
-	mu        sync.Mutex
-	parts     map[int64][]byte
-	block     <-chan struct{}
-	started   chan<- int64
-	active    atomic.Int64
-	maxActive atomic.Int64
+	t              *testing.T
+	urlCalls       atomic.Int64
+	listCalls      atomic.Int64
+	putCalls       atomic.Int64
+	complete       atomic.Int64
+	oldFlow        atomic.Int64
+	forbidOne      atomic.Bool
+	listParts      json.RawMessage
+	completeFile   *api.File
+	completeStatus int
+	mu             sync.Mutex
+	parts          map[int64][]byte
+	block          <-chan struct{}
+	started        chan<- int64
+	active         atomic.Int64
+	maxActive      atomic.Int64
 }
 
 func (h *presignedHarness) control() http.Handler {
@@ -79,27 +84,57 @@ func (h *presignedHarness) control() http.Handler {
 				urls[strconv.FormatInt(part, 10)] = fmt.Sprintf("https://upload.test/part/%d?generation=%d&secret=redacted", part, generation)
 			}
 			writeEnvelope(h.t, w, 0, api.PresignedURLsData{PresignedURLs: urls})
-		case "/b/api" + api.S3CompletePath:
-			var body struct {
-				Bucket      string `json:"bucket"`
-				Key         string `json:"key"`
-				UploadID    string `json:"uploadId"`
-				StorageNode string `json:"StorageNode"`
-			}
+		case "/b/api" + api.S3ListUploadPartsPath:
+			var body api.UploadPartsRequest
 			if err := decodeRequestJSON(r, &body); err != nil {
 				h.t.Error(err)
 			}
-			if body.Bucket != "bucket" || body.Key != "key" {
-				h.t.Errorf("invalid merge request: %#v", body)
+			if body.Bucket != "bucket" || body.Key != "key" || body.UploadID != "upload" || body.StorageNode != "node" {
+				h.t.Errorf("invalid list parts request: %#v", body)
 			}
-			h.merge.Add(1)
-			writeEnvelope(h.t, w, 0, nil)
-		case "/b/api" + api.UploadCompletePath:
-			if h.merge.Load() != 1 {
-				h.t.Error("file completion called before exactly one S3 merge")
+			h.listCalls.Add(1)
+			parts := h.listParts
+			if len(parts) == 0 {
+				parts = json.RawMessage("null")
+			}
+			writeEnvelope(h.t, w, 0, api.UploadPartsData{Parts: parts})
+		case "/b/api" + api.UploadCompleteV2Path:
+			var body api.UploadCompleteV2Request
+			if err := decodeRequestJSON(r, &body); err != nil {
+				h.t.Error(err)
+			}
+			if body.Bucket != "bucket" || body.Key != "key" || body.UploadID != "upload" || body.StorageNode != "node" || body.FileID != 7 || body.IsMultipart != (body.FileSize > uploadChunkSize) {
+				h.t.Errorf("invalid v2 completion request: %#v", body)
 			}
 			h.complete.Add(1)
-			writeEnvelope(h.t, w, 0, nil)
+			if h.completeStatus != 0 {
+				http.Error(w, "completion response lost", h.completeStatus)
+				return
+			}
+			h.mu.Lock()
+			var joined []byte
+			for part := int64(1); ; part++ {
+				data, ok := h.parts[part]
+				if !ok {
+					break
+				}
+				joined = append(joined, data...)
+			}
+			h.mu.Unlock()
+			digest := md5.Sum(joined)
+			fileInfo := api.File{
+				FileID: body.FileID,
+				Size:   body.FileSize,
+				ETag:   hex.EncodeToString(digest[:]),
+			}
+			if h.completeFile != nil {
+				fileInfo = *h.completeFile
+			}
+			writeEnvelope(h.t, w, 0, api.UploadCompleteData{FileInfo: fileInfo})
+		case "/b/api/file/s3_complete_multipart_upload", "/b/api" + api.UploadCompletePath:
+			h.oldFlow.Add(1)
+			h.t.Errorf("unsupported legacy presigned completion path %q", r.URL.Path)
+			http.NotFound(w, r)
 		default:
 			h.t.Errorf("unexpected control path %q", r.URL.Path)
 			http.NotFound(w, r)
@@ -115,6 +150,9 @@ func (h *presignedHarness) data() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "" {
 			h.t.Error("Authorization leaked to presigned upload")
+		}
+		if r.Header.Get("Referer") != webOrigin+"/" {
+			h.t.Errorf("presigned upload referer = %q", r.Header.Get("Referer"))
 		}
 		h.putCalls.Add(1)
 		active := h.active.Add(1)
@@ -162,7 +200,8 @@ func TestPresignedReadsNoMoreThanActivePayloads(t *testing.T) {
 	source := &preparedSource{reader: reader, size: int64(len(data)), md5: hex.EncodeToString(digest[:])}
 	done := make(chan error, 1)
 	go func() {
-		done <- f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket"}, source)
+		_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+		done <- err
 	}()
 	for range 2 {
 		select {
@@ -206,12 +245,17 @@ func TestPresignedUploadBoundaries(t *testing.T) {
 			digest := md5.Sum(data)
 			source := &preparedSource{reader: bytes.NewReader(data), size: size, md5: hex.EncodeToString(digest[:])}
 			upload := api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}
-			if err := f.uploadPresigned(context.Background(), upload, source); err != nil {
+			completed, err := f.uploadPresigned(context.Background(), upload, source)
+			if err != nil {
 				t.Fatal(err)
 			}
 			parts, _ := uploadPartCount(size)
-			if h.merge.Load() != 1 || h.complete.Load() != 1 || int64(len(h.parts)) != parts {
-				t.Fatalf("merge=%d complete=%d parts=%d want=%d", h.merge.Load(), h.complete.Load(), len(h.parts), parts)
+			wantList := int64(0)
+			if parts > 1 {
+				wantList = 1
+			}
+			if completed == nil || h.listCalls.Load() != wantList || h.complete.Load() != 1 || h.oldFlow.Load() != 0 || int64(len(h.parts)) != parts {
+				t.Fatalf("completed=%#v list=%d complete=%d old=%d parts=%d want=%d", completed, h.listCalls.Load(), h.complete.Load(), h.oldFlow.Load(), len(h.parts), parts)
 			}
 			var joined []byte
 			for part := int64(1); part <= parts; part++ {
@@ -230,11 +274,11 @@ func TestPresigned403RefreshesBatch(t *testing.T) {
 	f := newPresignedTestFs(t, h)
 	digest := md5.Sum([]byte("x"))
 	source := &preparedSource{reader: strings.NewReader("x"), size: 1, md5: hex.EncodeToString(digest[:])}
-	if err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket"}, source); err != nil {
+	if _, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source); err != nil {
 		t.Fatal(err)
 	}
-	if h.urlCalls.Load() != 2 || h.putCalls.Load() != 2 || h.merge.Load() != 1 || h.complete.Load() != 1 {
-		t.Fatalf("urls=%d puts=%d merge=%d complete=%d", h.urlCalls.Load(), h.putCalls.Load(), h.merge.Load(), h.complete.Load())
+	if h.urlCalls.Load() != 2 || h.putCalls.Load() != 2 || h.complete.Load() != 1 || h.oldFlow.Load() != 0 {
+		t.Fatalf("urls=%d puts=%d complete=%d old=%d", h.urlCalls.Load(), h.putCalls.Load(), h.complete.Load(), h.oldFlow.Load())
 	}
 }
 
@@ -252,17 +296,65 @@ func TestPresignedDoesNotCompleteOnShortOrChangedSource(t *testing.T) {
 			h := &presignedHarness{t: t, parts: make(map[int64][]byte)}
 			f := newPresignedTestFs(t, h)
 			source := &preparedSource{reader: strings.NewReader(tc.data), size: tc.size, md5: tc.sum}
-			err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket"}, source)
-			if err == nil || h.merge.Load() != 0 || h.complete.Load() != 0 {
-				t.Fatalf("err=%v merge=%d complete=%d", err, h.merge.Load(), h.complete.Load())
+			_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+			if err == nil || h.complete.Load() != 0 || h.oldFlow.Load() != 0 {
+				t.Fatalf("err=%v complete=%d old=%d", err, h.complete.Load(), h.oldFlow.Load())
 			}
 		})
 	}
 }
 
+func TestPresignedRejectsUnverifiedResumeParts(t *testing.T) {
+	h := &presignedHarness{
+		t:         t,
+		parts:     make(map[int64][]byte),
+		listParts: json.RawMessage(`[{"PartNumber":1}]`),
+	}
+	f := newPresignedTestFs(t, h)
+	data := bytes.Repeat([]byte{'x'}, int(uploadChunkSize+1))
+	digest := md5.Sum(data)
+	source := &preparedSource{reader: bytes.NewReader(data), size: int64(len(data)), md5: hex.EncodeToString(digest[:])}
+	_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+	if err == nil {
+		t.Fatal("accepted unverified multipart resume state")
+	}
+	if h.listCalls.Load() != 1 || h.urlCalls.Load() != 0 || h.putCalls.Load() != 0 || h.complete.Load() != 0 {
+		t.Fatalf("list=%d urls=%d puts=%d complete=%d", h.listCalls.Load(), h.urlCalls.Load(), h.putCalls.Load(), h.complete.Load())
+	}
+}
+
+func TestPresignedRequiresCompleteFileInfo(t *testing.T) {
+	h := &presignedHarness{t: t, parts: make(map[int64][]byte), completeFile: &api.File{}}
+	f := newPresignedTestFs(t, h)
+	digest := md5.Sum([]byte("x"))
+	source := &preparedSource{reader: strings.NewReader("x"), size: 1, md5: hex.EncodeToString(digest[:])}
+	_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+	if err == nil {
+		t.Fatal("accepted upload_complete/v2 without a valid file_info mapping")
+	}
+	if h.complete.Load() != 1 || h.oldFlow.Load() != 0 {
+		t.Fatalf("complete=%d old=%d", h.complete.Load(), h.oldFlow.Load())
+	}
+}
+
+func TestPresignedCompletionIsNeverReplayed(t *testing.T) {
+	h := &presignedHarness{t: t, parts: make(map[int64][]byte), completeStatus: http.StatusInternalServerError}
+	f := newPresignedTestFs(t, h)
+	digest := md5.Sum([]byte("x"))
+	source := &preparedSource{reader: strings.NewReader("x"), size: 1, md5: hex.EncodeToString(digest[:])}
+	_, err := f.uploadPresigned(context.Background(), api.UploadData{FileID: 7, Key: "key", Bucket: "bucket", UploadID: "upload", StorageNode: "node"}, source)
+	var ambiguous *ambiguousCompleteError
+	if !errors.As(err, &ambiguous) {
+		t.Fatalf("completion error = %v, want ambiguousCompleteError", err)
+	}
+	if h.complete.Load() != 1 || h.oldFlow.Load() != 0 {
+		t.Fatalf("complete=%d old=%d", h.complete.Load(), h.oldFlow.Load())
+	}
+}
+
 func TestPartialLegacyCredentialsRejected(t *testing.T) {
 	f := &Fs{}
-	err := f.uploadData(context.Background(), api.UploadData{AccessKeyID: "only-one"}, &preparedSource{})
+	_, err := f.uploadData(context.Background(), api.UploadData{AccessKeyID: "only-one"}, &preparedSource{})
 	if err == nil {
 		t.Fatal("accepted partial credentials")
 	}

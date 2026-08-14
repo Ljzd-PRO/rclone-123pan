@@ -72,15 +72,15 @@ func uploadBatches(parts int64) []partBatch {
 }
 
 func (f *Fs) getUploadURLs(ctx context.Context, upload api.UploadData, batch partBatch, single bool) (map[string]string, error) {
-	request := map[string]any{
-		"StorageNode": upload.StorageNode,
-		"bucket":      upload.Bucket,
-		"key":         upload.Key,
+	request := api.UploadURLRequest{
+		StorageNode: upload.StorageNode,
+		Bucket:      upload.Bucket,
+		Key:         upload.Key,
 		// The web API uses an exclusive upper bound even though returned URL
 		// keys are one-based part numbers.
-		"partNumberEnd":   batch.end + 1,
-		"partNumberStart": batch.start,
-		"uploadId":        upload.UploadID,
+		PartNumberEnd:   batch.end + 1,
+		PartNumberStart: batch.start,
+		UploadID:        upload.UploadID,
 	}
 	endpoint := api.PresignedPartsPath
 	if single {
@@ -154,6 +154,7 @@ func (f *Fs) putPresignedPart(ctx context.Context, batch *uploadURLBatch, part u
 			return fmt.Errorf("create upload request for part %d: %w", part.number, err)
 		}
 		request.ContentLength = int64(len(part.data))
+		request.Header.Set("Referer", webOrigin+"/")
 		response, err := f.downloadClient.Do(request)
 		if err == nil {
 			_, copyErr := io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10))
@@ -205,10 +206,36 @@ func readExactPart(reader io.Reader, size int64) ([]byte, error) {
 	return buffer, nil
 }
 
-func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source *preparedSource) error {
+func (f *Fs) checkNewMultipartUpload(ctx context.Context, upload api.UploadData) error {
+	request := api.UploadPartsRequest{
+		StorageNode: upload.StorageNode,
+		Bucket:      upload.Bucket,
+		Key:         upload.Key,
+		UploadID:    upload.UploadID,
+	}
+	var data api.UploadPartsData
+	if err := f.client.do(ctx, http.MethodPost, api.S3ListUploadPartsPath, request, &data); err != nil {
+		return err
+	}
+	parts := bytes.TrimSpace(data.Parts)
+	if len(parts) == 0 {
+		return errorsNewProtocol("multipart parts response is missing Parts")
+	}
+	if !bytes.Equal(parts, []byte("null")) {
+		return errorsNewProtocol("server returned existing multipart parts; unverified resume is disabled")
+	}
+	return nil
+}
+
+func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source *preparedSource) (*api.File, error) {
 	parts, err := uploadPartCount(source.size)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if parts > 1 {
+		if err := f.checkNewMultipartUpload(ctx, upload); err != nil {
+			return nil, err
+		}
 	}
 	hasher := md5.New()
 	reader := io.TeeReader(source.reader, hasher)
@@ -216,7 +243,7 @@ func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source 
 		single := parts == 1
 		urls, err := f.getUploadURLs(ctx, upload, batchRange, single)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		batch := &uploadURLBatch{urls: urls, batch: batchRange, single: single, upload: upload, fs: f}
 		group, groupCtx := errgroup.WithContext(ctx)
@@ -248,46 +275,37 @@ func (f *Fs) uploadPresigned(ctx context.Context, upload api.UploadData, source 
 		}
 		workerErr := group.Wait()
 		if producerErr != nil {
-			return producerErr
+			return nil, producerErr
 		}
 		if workerErr != nil {
-			return workerErr
+			return nil, workerErr
 		}
 	}
 	var extra [1]byte
 	if n, err := reader.Read(extra[:]); n != 0 || (err != nil && err != io.EOF) {
-		return errorsNewProtocol("source produced more bytes than declared size")
+		return nil, errorsNewProtocol("source produced more bytes than declared size")
 	}
 	actualMD5 := hex.EncodeToString(hasher.Sum(nil))
 	if actualMD5 != source.md5 {
-		return fmt.Errorf("source MD5 changed during upload: declared %s, read %s", source.md5, actualMD5)
+		return nil, fmt.Errorf("source MD5 changed during upload: declared %s, read %s", source.md5, actualMD5)
 	}
-	mergeRequest := map[string]any{
-		"StorageNode": upload.StorageNode,
-		"bucket":      upload.Bucket,
-		"key":         upload.Key,
-		"uploadId":    upload.UploadID,
+	completeRequest := api.UploadCompleteV2Request{
+		StorageNode: upload.StorageNode,
+		Bucket:      upload.Bucket,
+		FileID:      upload.FileID,
+		FileSize:    source.size,
+		IsMultipart: parts > 1,
+		Key:         upload.Key,
+		UploadID:    upload.UploadID,
 	}
-	// The current personal web service requires S3 parts to be merged before
-	// the 123Pan file record is committed. The fixed OpenList source declares
-	// this endpoint but its v2 shortcut can return code=0 without making the
-	// object visible on the live service.
-	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.S3CompletePath, mergeRequest, nil); err != nil {
-		return &ambiguousCompleteError{FileID: upload.FileID, err: err}
+	var complete api.UploadCompleteData
+	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.UploadCompleteV2Path, completeRequest, &complete); err != nil {
+		return nil, &ambiguousCompleteError{FileID: upload.FileID, err: err}
 	}
-	if f.uploadMergeDelay > 0 {
-		timer := time.NewTimer(f.uploadMergeDelay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
+	if complete.FileInfo.FileID <= 0 || complete.FileInfo.Size != source.size || normalizeMD5(complete.FileInfo.ETag) != source.md5 || complete.FileInfo.IsDir() {
+		return nil, errorsNewProtocol("upload_complete/v2 returned invalid file_info")
 	}
-	if err := f.client.doNonIdempotent(ctx, http.MethodPost, api.UploadCompletePath, map[string]any{"fileId": upload.FileID}, nil); err != nil {
-		return &ambiguousCompleteError{FileID: upload.FileID, err: err}
-	}
-	return nil
+	return &complete.FileInfo, nil
 }
 
 func (f *Fs) uploadLegacy(ctx context.Context, upload api.UploadData, source *preparedSource) error {
@@ -332,7 +350,10 @@ func (f *Fs) uploadLegacy(ctx context.Context, upload api.UploadData, source *pr
 	return nil
 }
 
-func (f *Fs) uploadData(ctx context.Context, upload api.UploadData, source *preparedSource) error {
+func (f *Fs) uploadData(ctx context.Context, upload api.UploadData, source *preparedSource) (*api.File, error) {
+	if err := validateUploadDataProfile(upload); err != nil {
+		return nil, err
+	}
 	credentialCount := 0
 	for _, value := range []string{upload.AccessKeyID, upload.SecretAccessKey, upload.SessionToken} {
 		if value != "" {
@@ -343,8 +364,8 @@ func (f *Fs) uploadData(ctx context.Context, upload api.UploadData, source *prep
 	case 0:
 		return f.uploadPresigned(ctx, upload, source)
 	case 3:
-		return f.uploadLegacy(ctx, upload, source)
+		return nil, f.uploadLegacy(ctx, upload, source)
 	default:
-		return errorsNewProtocol("upload response contains partial temporary S3 credentials")
+		return nil, errorsNewProtocol("upload response contains partial temporary S3 credentials")
 	}
 }

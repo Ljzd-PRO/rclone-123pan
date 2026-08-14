@@ -11,11 +11,11 @@ import (
 func TestSignerGolden(t *testing.T) {
 	now := time.Date(2025, time.December, 31, 16, 0, 0, 0, time.UTC)
 	s := signer{now: func() time.Time { return now }, random: func() (uint32, error) { return 1234567, nil }}
-	got, err := s.sign("https://yun.123pan.com/b/api/file/list/new?existing=yes")
+	got, err := s.sign("https://api.123278.com/b/api/file/list/new?existing=yes")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "https://yun.123pan.com/b/api/file/list/new?"
+	want := "https://api.123278.com/b/api/file/list/new?"
 	if !strings.HasPrefix(got, want) {
 		t.Fatalf("signed URL %q does not have prefix %q", got, want)
 	}
@@ -27,7 +27,7 @@ func TestSignerGolden(t *testing.T) {
 		t.Fatal("existing query parameter was lost")
 	}
 	// The exact signature is a compatibility tripwire for UTC+8 day rollover.
-	if got != "https://yun.123pan.com/b/api/file/list/new?2543441651=1767196800-1234567-3144878440&existing=yes" {
+	if got != "https://api.123278.com/b/api/file/list/new?2543441651=1767196800-1234567-3144878440&existing=yes" {
 		t.Fatalf("signature changed: %s", got)
 	}
 }

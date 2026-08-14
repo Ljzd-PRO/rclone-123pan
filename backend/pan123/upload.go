@@ -108,21 +108,46 @@ func (e *uploadPostconditionError) Error() string {
 	return fmt.Sprintf("123Pan upload postcondition failed for file ID %d: %s", e.FileID, e.Reason)
 }
 
+func validateUploadDataProfile(upload api.UploadData) error {
+	if upload.FileID <= 0 {
+		return errorsNewProtocol("data upload requires a positive file ID")
+	}
+	if upload.Key == "" {
+		return errorsNewProtocol("data upload requires an upload key")
+	}
+	credentialCount := 0
+	for _, value := range []string{upload.AccessKeyID, upload.SecretAccessKey, upload.SessionToken} {
+		if value != "" {
+			credentialCount++
+		}
+	}
+	switch credentialCount {
+	case 0:
+		if upload.Bucket == "" || upload.StorageNode == "" || upload.UploadID == "" {
+			return errorsNewProtocol("presigned upload response is missing required context")
+		}
+		if upload.SliceSize != strconv.FormatInt(uploadChunkSize, 10) {
+			return errorsNewProtocol("presigned upload response has an unsupported SliceSize")
+		}
+	case 3:
+		if upload.Bucket == "" || upload.EndPoint == "" {
+			return errorsNewProtocol("legacy upload response is missing required context")
+		}
+	default:
+		return errorsNewProtocol("upload response contains partial temporary S3 credentials")
+	}
+	return nil
+}
+
 func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, source *preparedSource) (api.UploadData, error) {
-	request := map[string]any{
-		"driveId": 0,
-		// 2 is the personal-web API's overwrite mode used by the fixed
-		// OpenList reference. The backend has already serialized and freshly
-		// checked this exact target before issuing the request.
-		"duplicate": 2,
-		"etag":      source.md5,
-		"fileName":  f.opt.Enc.FromStandardName(name),
-		// The personal web client and the fixed OpenList reference serialize
-		// directory IDs as decimal strings. Sending a JSON number is accepted by
-		// some endpoints but can allocate an upload which never becomes visible.
-		"parentFileId": strconv.FormatInt(parentID, 10),
-		"size":         source.size,
-		"type":         0,
+	request := api.UploadRequest{
+		RequestSource: nil,
+		DriveID:       0,
+		ETag:          source.md5,
+		FileName:      f.opt.Enc.FromStandardName(name),
+		ParentFileID:  parentID,
+		Size:          source.size,
+		Type:          0,
 	}
 	var upload api.UploadData
 	// Upload requests allocate a server-side file/upload ID. A transport or
@@ -137,11 +162,16 @@ func (f *Fs) requestUpload(ctx context.Context, parentID int64, name string, sou
 		}
 	}
 	fs.Debugf(f, "123Pan upload request response: file_id=%d reuse=%t key_present=%t upload_id_present=%t temporary_credentials=%d", upload.FileID, upload.Reuse, upload.Key != "", upload.UploadID != "", credentialCount)
-	if upload.FileID <= 0 {
+	if upload.FileID < 0 || (!upload.Reuse && upload.FileID == 0) {
 		return api.UploadData{}, errorsNewProtocol("upload request returned an invalid file ID")
 	}
 	if !upload.Reuse && upload.Key == "" {
 		return api.UploadData{}, errorsNewProtocol("upload request returned neither reuse nor an upload key")
+	}
+	if !upload.Reuse {
+		if err := validateUploadDataProfile(upload); err != nil {
+			return api.UploadData{}, err
+		}
 	}
 	return upload, nil
 }
@@ -192,6 +222,23 @@ func (f *Fs) inspectUpload(ctx context.Context, parentID int64, name string, fil
 		return nil, false, err
 	}
 	serverName := f.opt.Enc.FromStandardName(name)
+	if fileID == 0 {
+		var candidate *api.File
+		for i := range files {
+			item := &files[i]
+			if item.FileName != serverName {
+				continue
+			}
+			if item.FileID <= 0 || item.Size != size || normalizeMD5(item.ETag) != sum || item.IsDir() {
+				return nil, false, &uploadPostconditionError{FileID: item.FileID, Reason: "zero-ID rapid-upload candidate conflicts with the visible target path"}
+			}
+			if candidate != nil {
+				return nil, false, &uploadPostconditionError{FileID: item.FileID, Reason: "zero-ID rapid-upload candidate produced duplicate target objects"}
+			}
+			candidate = item
+		}
+		return candidate, candidate != nil, nil
+	}
 	for i := range files {
 		item := &files[i]
 		if item.FileID != fileID {
@@ -220,15 +267,20 @@ func (f *Fs) rapidUpload(ctx context.Context, parentID int64, name string, sourc
 	if err != nil {
 		return nil, upload, err
 	}
-	// The fixed OpenList reference treats Reuse=true as an unconditional
-	// rapid-upload hit. The live personal API can now return Reuse=true together
-	// with an upload key while the object is not visible. In that response shape
-	// the key is the only verified path to completing the upload, so continue
-	// with data transfer. Reuse without a key still has no upload path and must
-	// wait for the exact object postcondition.
+	// The current Web API can return Reuse=true with FileId=0 after it has
+	// materialized a new positive-ID object. inspectUpload coordinates that
+	// response only through a unique exact target in this freshly listed parent.
+	// If the object is not visible, a positive-ID and complete upload profile are
+	// required before any data transfer is allowed.
 	if !visible && upload.Key != "" {
+		if err := validateUploadDataProfile(upload); err != nil {
+			return nil, upload, err
+		}
 		fs.Infof(f, "123Pan reuse candidate ID %d is not visible; using the supplied upload key", upload.FileID)
 		return nil, upload, nil
+	}
+	if !visible && upload.FileID == 0 {
+		return nil, upload, errorsNewProtocol("zero-ID rapid-upload candidate is not visible")
 	}
 	if !visible {
 		item, err = f.verifyUpload(ctx, parentID, name, upload.FileID, source.size, source.md5)
@@ -265,7 +317,8 @@ func (f *Fs) uploadNew(ctx context.Context, in io.Reader, src fs.ObjectInfo, par
 		o.remote = remote
 		return o, nil
 	}
-	if err := f.uploadData(ctx, upload, prepared); err != nil {
+	completed, err := f.uploadData(ctx, upload, prepared)
+	if err != nil {
 		var ambiguous *ambiguousCompleteError
 		if errors.As(err, &ambiguous) {
 			item, verifyErr := f.verifyUpload(ctx, parentID, name, upload.FileID, prepared.size, prepared.md5)
@@ -276,7 +329,15 @@ func (f *Fs) uploadNew(ctx context.Context, in io.Reader, src fs.ObjectInfo, par
 		}
 		return nil, fmt.Errorf("upload data for file ID %d: %w", upload.FileID, err)
 	}
-	item, verifyErr := f.verifyUpload(ctx, parentID, name, upload.FileID, prepared.size, prepared.md5)
+	terminalID := upload.FileID
+	if completed != nil {
+		terminalID = completed.FileID
+		serverName := f.opt.Enc.FromStandardName(name)
+		if terminalID <= 0 || completed.ParentFileID != parentID || completed.FileName != serverName || completed.Size != prepared.size || normalizeMD5(completed.ETag) != prepared.md5 || completed.IsDir() {
+			return nil, &uploadPostconditionError{FileID: terminalID, Reason: "completion response file_info does not match the requested object"}
+		}
+	}
+	item, verifyErr := f.verifyUpload(ctx, parentID, name, terminalID, prepared.size, prepared.md5)
 	if verifyErr != nil {
 		return nil, verifyErr
 	}

@@ -18,9 +18,9 @@ const (
 	RenamePath            = "/file/rename"
 	TrashPath             = "/file/trash"
 	UploadCompletePath    = "/file/upload_complete"
-	S3CompletePath        = "/file/s3_complete_multipart_upload"
 	PresignedPartsPath    = "/file/s3_repare_upload_parts_batch"
 	SingleObjectAuthPath  = "/file/s3_upload_object/auth"
+	S3ListUploadPartsPath = "/file/s3_list_upload_parts"
 	UploadCompleteV2Path  = "/file/upload_complete/v2"
 	OfflineResolvePath    = "/v2/offline_download/task/resolve"
 	OfflineSubmitPath     = "/v2/offline_download/task/submit"
@@ -43,14 +43,15 @@ type LoginData struct {
 
 // File is the complete metadata needed for identity checks and downloads.
 type File struct {
-	FileName    string    `json:"FileName"`
-	Size        int64     `json:"Size"`
-	UpdateAt    time.Time `json:"UpdateAt"`
-	FileID      int64     `json:"FileId"`
-	Type        int       `json:"Type"`
-	ETag        string    `json:"Etag"`
-	S3KeyFlag   string    `json:"S3KeyFlag"`
-	DownloadURL string    `json:"DownloadUrl"`
+	FileName     string    `json:"FileName"`
+	Size         int64     `json:"Size"`
+	UpdateAt     time.Time `json:"UpdateAt"`
+	FileID       int64     `json:"FileId"`
+	ParentFileID int64     `json:"ParentFileId"`
+	Type         int       `json:"Type"`
+	ETag         string    `json:"Etag"`
+	S3KeyFlag    string    `json:"S3KeyFlag"`
+	DownloadURL  string    `json:"DownloadUrl"`
 }
 
 // IsDir reports the server directory marker.
@@ -65,16 +66,71 @@ type FileListData struct {
 
 // UploadData selects rapid, legacy-S3, or presigned upload handling.
 type UploadData struct {
-	AccessKeyID     string `json:"AccessKeyId"`
-	Bucket          string `json:"Bucket"`
-	Key             string `json:"Key"`
-	SecretAccessKey string `json:"SecretAccessKey"`
-	SessionToken    string `json:"SessionToken"`
-	FileID          int64  `json:"FileId"`
-	Reuse           bool   `json:"Reuse"`
-	EndPoint        string `json:"EndPoint"`
+	AccessKeyID      string `json:"AccessKeyId"`
+	Bucket           string `json:"Bucket"`
+	Key              string `json:"Key"`
+	SecretAccessKey  string `json:"SecretAccessKey"`
+	SessionToken     string `json:"SessionToken"`
+	FileID           int64  `json:"FileId"`
+	Reuse            bool   `json:"Reuse"`
+	EndPoint         string `json:"EndPoint"`
+	StorageNode      string `json:"StorageNode"`
+	UploadID         string `json:"UploadId"`
+	SliceSize        string `json:"SliceSize"`
+	UploadFileStatus int    `json:"UploadFileStatus"`
+}
+
+// UploadRequest is the current official Web request shape. RequestSource is
+// deliberately emitted as JSON null and parentFileId is a JSON number.
+type UploadRequest struct {
+	RequestSource *string `json:"RequestSource"`
+	DriveID       int     `json:"driveId"`
+	ETag          string  `json:"etag"`
+	FileName      string  `json:"fileName"`
+	ParentFileID  int64   `json:"parentFileId"`
+	Size          int64   `json:"size"`
+	Type          int     `json:"type"`
+}
+
+// UploadURLRequest identifies one exclusive range of presigned part URLs.
+type UploadURLRequest struct {
 	StorageNode     string `json:"StorageNode"`
-	UploadID        string `json:"UploadId"`
+	Bucket          string `json:"bucket"`
+	Key             string `json:"key"`
+	PartNumberEnd   int64  `json:"partNumberEnd"`
+	PartNumberStart int64  `json:"partNumberStart"`
+	UploadID        string `json:"uploadId"`
+}
+
+// UploadPartsRequest identifies the multipart session checked before upload.
+type UploadPartsRequest struct {
+	StorageNode string `json:"StorageNode"`
+	Bucket      string `json:"bucket"`
+	Key         string `json:"key"`
+	UploadID    string `json:"uploadId"`
+}
+
+// UploadPartsData is intentionally raw because the current Web response for a
+// new upload is Parts=null. Non-null resume state is rejected until verified.
+type UploadPartsData struct {
+	Parts json.RawMessage `json:"Parts"`
+}
+
+// UploadCompleteV2Request is the sole completion request used by the current
+// official Web presigned profile.
+type UploadCompleteV2Request struct {
+	StorageNode string `json:"StorageNode"`
+	Bucket      string `json:"bucket"`
+	FileID      int64  `json:"fileId"`
+	FileSize    int64  `json:"fileSize"`
+	IsMultipart bool   `json:"isMultipart"`
+	Key         string `json:"key"`
+	UploadID    string `json:"uploadId"`
+}
+
+// UploadCompleteData contains the explicit terminal object mapping.
+type UploadCompleteData struct {
+	FileInfo File `json:"file_info"`
 }
 
 // PresignedURLsData maps one-based part numbers to short-lived PUT URLs.

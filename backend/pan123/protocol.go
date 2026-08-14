@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	webOrigin        = "https://yun.123pan.com"
+	webOrigin        = "https://yun.123pan.cn"
 	protocolPlatform = "web"
 	protocolVersion  = "3"
 )

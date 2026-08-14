@@ -57,9 +57,31 @@
       }
     ]
   },
+  "rapid_same_md5_different_name": {
+    "upload_request_response": {
+      "Reuse": true,
+      "FileId": 0,
+      "key_present": true,
+      "upload_id_present": false
+    },
+    "subsequent_steps": [
+      {
+        "method": "GET",
+        "path": "/b/api/file/list/new"
+      },
+      {
+        "method": "POST",
+        "path": "/b/api/file/info",
+        "file_id": "<positive-json-number-from-list>"
+      }
+    ],
+    "data_put_count": 0,
+    "complete_call_count": 0
+  },
   "multipart_16777217_bytes": {
     "reuse": false,
     "slice_size_response_type": "string",
+    "slice_size_response_value": "16777216",
     "steps": [
       {
         "method": "POST",

@@ -121,17 +121,78 @@ func TestRapidUploadReadsNoBodyAndVerifies(t *testing.T) {
 	}
 }
 
+func TestRapidUploadZeroIDCoordinatesByUniqueMetadata(t *testing.T) {
+	const sum = "5d41402abc4b2a76b9719d911017c592"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/b/api" + api.UploadRequestPath:
+			writeEnvelope(t, w, 0, api.UploadData{FileID: 0, Reuse: true, Key: "opaque-key"})
+		case "/b/api" + api.FileListPath:
+			writeEnvelope(t, w, 0, api.FileListData{Next: "-1", Total: 1, InfoList: []api.File{{FileName: "x", FileID: 11, Size: 5, ETag: sum}}})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	f := newListingTestFs(t, handler)
+	input := &countingReader{reader: strings.NewReader("hello")}
+	source := &preparedSource{reader: input, size: 5, md5: sum, cleanup: func() error { return nil }}
+	obj, upload, err := f.rapidUpload(context.Background(), 0, "x", source, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if obj == nil || obj.id != 11 || upload.FileID != 0 || !upload.Reuse || input.read.Load() != 0 {
+		t.Fatalf("obj=%#v upload=%#v read=%d", obj, upload, input.read.Load())
+	}
+}
+
+func TestRapidUploadZeroIDRejectsAmbiguousTarget(t *testing.T) {
+	const sum = "5d41402abc4b2a76b9719d911017c592"
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/b/api"+api.UploadRequestPath {
+			writeEnvelope(t, w, 0, api.UploadData{FileID: 0, Reuse: true, Key: "opaque-key"})
+			return
+		}
+		writeEnvelope(t, w, 0, api.FileListData{Next: "-1", Total: 2, InfoList: []api.File{
+			{FileName: "x", FileID: 11, Size: 5, ETag: sum},
+			{FileName: "x", FileID: 12, Size: 5, ETag: sum},
+		}})
+	})
+	f := newListingTestFs(t, handler)
+	_, _, err := f.rapidUpload(context.Background(), 0, "x", &preparedSource{size: 5, md5: sum}, bytes.NewReader(nil))
+	if err == nil {
+		t.Fatal("accepted ambiguous zero-ID rapid-upload target")
+	}
+}
+
+func TestRapidUploadZeroIDWithoutVisibleTargetFailsClosed(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/b/api"+api.UploadRequestPath {
+			writeEnvelope(t, w, 0, api.UploadData{FileID: 0, Reuse: true, Key: "opaque-key"})
+			return
+		}
+		writeEnvelope(t, w, 0, api.FileListData{Next: "-1", Total: 0})
+	})
+	f := newListingTestFs(t, handler)
+	_, _, err := f.rapidUpload(context.Background(), 0, "x", &preparedSource{size: 5, md5: "5d41402abc4b2a76b9719d911017c592"}, bytes.NewReader(nil))
+	if err == nil {
+		t.Fatal("accepted invisible zero-ID rapid-upload target")
+	}
+}
+
 func TestUploadRequestRejectsFalseSuccess(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
-		if request["duplicate"] != float64(2) {
-			t.Fatalf("duplicate mode = %#v, want 2", request["duplicate"])
+		if _, ok := request["duplicate"]; ok {
+			t.Fatalf("upload request contains obsolete duplicate field: %#v", request)
 		}
-		if request["parentFileId"] != "123" {
-			t.Fatalf("parentFileId = %#v, want decimal string", request["parentFileId"])
+		if request["parentFileId"] != float64(123) {
+			t.Fatalf("parentFileId = %#v, want JSON number", request["parentFileId"])
+		}
+		if source, ok := request["RequestSource"]; !ok || source != nil {
+			t.Fatalf("RequestSource = %#v, want explicit null", request["RequestSource"])
 		}
 		writeEnvelope(t, w, 0, api.UploadData{FileID: 9, Reuse: false, Key: ""})
 	})
@@ -158,6 +219,37 @@ func TestUploadRequestDoesNotReplayAmbiguousFailure(t *testing.T) {
 	}
 }
 
+func TestUploadRequestRejectsIncompleteProfiles(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		data api.UploadData
+	}{
+		{
+			name: "presigned missing context",
+			data: api.UploadData{FileID: 9, Key: "key", SliceSize: "16777216"},
+		},
+		{
+			name: "presigned wrong slice size",
+			data: api.UploadData{FileID: 9, Key: "key", Bucket: "bucket", StorageNode: "node", UploadID: "upload", SliceSize: "1"},
+		},
+		{
+			name: "partial legacy credentials",
+			data: api.UploadData{FileID: 9, Key: "key", AccessKeyID: "access"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				writeEnvelope(t, w, 0, tc.data)
+			})
+			f := newListingTestFs(t, handler)
+			_, err := f.requestUpload(context.Background(), 123, "x", &preparedSource{size: 1, md5: "0cc175b9c0f1b6a831c399e269772661"})
+			if err == nil {
+				t.Fatal("accepted incomplete upload profile")
+			}
+		})
+	}
+}
+
 func TestRapidUploadRejectsFakeReuse(t *testing.T) {
 	var lists atomic.Int64
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,7 +273,10 @@ func TestRapidUploadFallsBackWhenReuseHasUploadKeyButIsNotVisible(t *testing.T) 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/b/api" + api.UploadRequestPath:
-			writeEnvelope(t, w, 0, api.UploadData{FileID: 9, Reuse: true, Key: "upload-key"})
+			writeEnvelope(t, w, 0, api.UploadData{
+				FileID: 9, Reuse: true, Key: "upload-key", Bucket: "bucket",
+				StorageNode: "node", UploadID: "upload", SliceSize: "16777216",
+			})
 		case "/b/api" + api.FileListPath:
 			writeEnvelope(t, w, 0, api.FileListData{Next: "-1", Total: 0})
 		default:
