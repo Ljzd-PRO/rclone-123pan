@@ -79,10 +79,12 @@ jobs:
               *) prerelease=false ;;
             esac
           fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
-          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+            echo "prerelease=$prerelease"
+            echo "draft=$draft"
+          } >> "$GITHUB_OUTPUT"
 
   quality:
     name: 完整质量门禁
