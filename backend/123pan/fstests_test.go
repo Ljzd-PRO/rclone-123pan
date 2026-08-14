@@ -1,6 +1,6 @@
-//go:build pan123live
+//go:build 123panlive
 
-package pan123_test
+package _123pan_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/ljzd/rclone-123pan/backend/pan123"
+	"github.com/ljzd/rclone-123pan/backend/123pan"
 	"github.com/ljzd/rclone-123pan/internal/livetest"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/hash"
@@ -89,6 +89,6 @@ func TestIntegration(t *testing.T) {
 	defer verifyLiveSentinels(t, manifest)
 	fstests.Run(t, &fstests.Opt{
 		RemoteName: "Test123Pan:",
-		NilObject:  (*pan123.Object)(nil),
+		NilObject:  (*_123pan.Object)(nil),
 	})
 }

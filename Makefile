@@ -18,8 +18,8 @@ race:
 	$(GO) test -race ./...
 
 fuzz:
-	$(GO) test ./backend/pan123 -run '^$$' -fuzz '^FuzzDecodeEnvelope$$' -fuzztime=5s
-	$(GO) test ./backend/pan123 -run '^$$' -fuzz '^FuzzUploadPartCount$$' -fuzztime=5s
+	$(GO) test ./backend/123pan -run '^$$' -fuzz '^FuzzDecodeEnvelope$$' -fuzztime=5s
+	$(GO) test ./backend/123pan -run '^$$' -fuzz '^FuzzUploadPartCount$$' -fuzztime=5s
 
 vet:
 	$(GO) vet ./...

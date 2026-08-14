@@ -1,5 +1,5 @@
 //go:build race
 
-package pan123
+package _123pan
 
 const raceDetectorEnabled = true

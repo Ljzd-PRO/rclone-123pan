@@ -1,6 +1,6 @@
-//go:build !pan123test
+//go:build !123pantest
 
-package pan123
+package _123pan
 
 const (
 	productionLoginRoot = "https://login.123pan.com"

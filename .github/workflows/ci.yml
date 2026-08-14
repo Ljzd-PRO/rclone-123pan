@@ -21,9 +21,9 @@ jobs:
       - run: go test ./...
       - run: go test -race ./...
       - name: 模糊测试严格响应 envelope
-        run: go test ./backend/pan123 -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=5s
+        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=5s
       - name: 模糊测试上传分片规划
-        run: go test ./backend/pan123 -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=5s
+        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=5s
       - name: 固定版本静态检查
         uses: golangci/golangci-lint-action@v9
         with:

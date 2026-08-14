@@ -1,4 +1,4 @@
-package pan123
+package _123pan
 
 import (
 	"crypto/rand"
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ljzd/rclone-123pan/backend/pan123/api"
+	"github.com/ljzd/rclone-123pan/backend/123pan/api"
 )
 
 const (

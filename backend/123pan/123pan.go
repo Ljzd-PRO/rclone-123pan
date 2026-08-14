@@ -1,5 +1,5 @@
-// Package pan123 implements an experimental 123Pan personal-account backend.
-package pan123
+// Package _123pan implements an experimental 123Pan personal-account backend.
+package _123pan
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ljzd/rclone-123pan/backend/pan123/api"
+	"github.com/ljzd/rclone-123pan/backend/123pan/api"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
@@ -33,7 +33,7 @@ const defaultEncoding = encoder.Display |
 func init() {
 	fs.Register(&fs.RegInfo{
 		Name:        "123pan",
-		Prefix:      "pan123",
+		Prefix:      "123pan",
 		Description: "123 网盘个人账号（实验性）",
 		NewFs:       NewFs,
 		CommandHelp: commandHelp,

@@ -44,7 +44,7 @@ fi
 cd "$checkout/rclone"
 "$go_cmd" mod edit -require="$module@v0.0.0"
 "$go_cmd" mod edit -replace="$module=$root"
-printf '%s\n' 'package all' 'import _ "github.com/ljzd/rclone-123pan/backend/pan123"' > backend/all/pan123_external.go
+printf '%s\n' 'package all' 'import _ "github.com/ljzd/rclone-123pan/backend/123pan"' > backend/all/123pan_external.go
 
 # 在固定上游版本中真实运行账号无关的 operations/sync/VFS/bisync 单元
 # 契约；缓存严格位于本次临时 checkout，不写用户默认缓存目录。

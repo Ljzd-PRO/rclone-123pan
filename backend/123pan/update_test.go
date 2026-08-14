@@ -1,4 +1,4 @@
-package pan123
+package _123pan
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ljzd/rclone-123pan/backend/pan123/api"
+	"github.com/ljzd/rclone-123pan/backend/123pan/api"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/hash"
 	"github.com/rclone/rclone/fs/object"

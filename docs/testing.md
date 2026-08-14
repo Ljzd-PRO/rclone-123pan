@@ -20,7 +20,7 @@ mock 测试覆盖 0/1/16 MiB 边界、服务端 16/32 MiB `SliceSize` 档位、1
 
 `tools/vfsprobe` 只操作显式 `-path` 指定的单个文件。它依次执行完整写入、seek 到 offset 4 覆写、truncate 到 12 字节、fsync、关闭和重开核验；`-verify-only` 可用于验证从远端重新下载的内容。该探针用于 full-cache native mount runner，不能对非隔离路径运行。
 
-`backend/pan123/fstests_test.go` 只在 `pan123live` build tag 下编译，并会用 `Test123Pan:` 调用 `fstests.Run`。完整 fstests 不适合在含有个人数据的账号上运行，除非同时满足以下条件，否则会强制拒绝：
+`backend/123pan/fstests_test.go` 只在 `123panlive` build tag 下编译，并会用 `Test123Pan:` 调用 `fstests.Run`。完整 fstests 不适合在含有个人数据的账号上运行，除非同时满足以下条件，否则会强制拒绝：
 
 - `RCLONE_123_RUN_LIVE=1`；
 - `RCLONE_123_LIVE_ACK=DEDICATED_EMPTY_ACCOUNT`；
