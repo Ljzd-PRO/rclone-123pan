@@ -14,6 +14,8 @@ rclone v1.75.0 要求每个已注册后端的文档都嵌入 rclone 自身的 `d
 
 OpenList v4.2.5 的个人盘 driver 使用 `https://yun.123pan.com/b/api`。2026-08-15 的官方 Web 脱敏抓线确认当前控制 API 已改为 `https://api.123278.com/b/api`，页面来源为 `https://yun.123pan.cn/`。
 
+OpenList v4.2.5 的 `drivers/123` 明确不实现 Copy；这不能代表当前 123 网盘官方 Web 的能力。2026-08-15 当前官方 Web 公开生产资源已经使用 `/restful/goapi/v1/file/copy/async`，并在异步模式轮询 `/restful/goapi/v1/file/copy/task`。本后端据此独立实现文件级服务端 Copy，不复制 OpenList 的 AGPL 表达性代码。官方接口只保留源名复制到目录，因此 rclone 任意目标名通过唯一 staging 目录和既有 Move/rename 安全补齐。
+
 固定 OpenList 与当前 Web 都在预签数据 PUT 后只调用 `/file/upload_complete/v2`，请求包含 `StorageNode`、`bucket`、`fileId`、`fileSize`、`isMultipart`、`key` 和 `uploadId`。当前 Web 没有调用 `s3_complete_multipart_upload`、旧式 `upload_complete` 或固定等待。单片使用 `s3_upload_object/auth`；16 MiB+1 的实测多片上传先查询 `s3_list_upload_parts`，再按独占上界申请分片 URL，最后只调用一次 v2 完成接口。
 
 OpenList v4.2.5 固定使用 16 MiB 分片且忽略响应中的 `SliceSize`。隔离真实 API 在 48 MiB+1 文件上返回 16 MiB，在 160 MiB+1 预申请上返回 32 MiB。后端因此不照搬 OpenList 的固定值，而只接受已观察到的 16/32 MiB 两档并用返回值计算分片、offset 和内存上界；其他值在任何数据 PUT 前失败关闭。

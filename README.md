@@ -3,7 +3,7 @@
 本仓库用于构建定制的 `rclone-123` 二进制，其中包含面向 123 网盘个人账号的实验性树外后端。
 
 > [!WARNING]
-> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-15 已通过官方 Web 脱敏抓线闭合当前单片、多片和秒传协议；修复后的后端已完成 0 至 48 MiB+1 上传边界、100/101 项分页、秒传、可恢复 Update、安全 Move/DirMove/Rmdir、core Copy/sync、bisync、四种 VFS cache mode、七种 serve 协议、macOS nfsmount 和 crypt 包装的隔离真实闭环。其他平台原生挂载和七日 canary 尚未完成，因此仍不适合公开发布或生产使用。
+> 当前版本是内部 alpha，使用逆向分析所得的 Web API。2026-08-15 已通过官方 Web 脱敏抓线闭合当前单片、多片和秒传协议；修复后的后端已完成 0 至 48 MiB+1 上传边界、100/101 项分页、秒传、可恢复 Update、安全 Move/DirMove/Rmdir、core Copy/sync、bisync、四种 VFS cache mode、七种 serve 协议、macOS nfsmount 和 crypt 包装的隔离真实闭环。当前官方 Web 的服务端 Copy 协议已经固化并通过状态化 mock 与 rclone operations 契约，但尚未用新的隔离真实账号活动复测。其他平台原生挂载和七日 canary 也尚未完成，因此仍不适合公开发布或生产使用。
 
 ## 固定基线
 
@@ -26,6 +26,7 @@
 | AWS SDK v2 旧式上传和有界预签名分片上传 | 0/1/16 MiB−1/16 MiB/16 MiB+1/48 MiB+1 已真实通过；支持实测的 16/32 MiB 动态档位 |
 | 可恢复的 staging/backup 对象替换 | 已通过故障测试与隔离真实闭环 |
 | 安全的 mkdir/remove/rmdir 和按 ID 验证的 Move/DirMove | 已通过单元测试与隔离真实闭环 |
+| 服务端 Copy | 按当前官方 Web API 实现；同步/异步、任意目标名、安全覆盖和响应丢失协调已通过 mock 与 rclone operations 契约；真实账号复测待完成 |
 | 离线任务 add/status/delete 后端命令 | 已实现并通过单元测试 |
 | bisync | `--checksum` resync、双向增量、check-access、max-delete 阻断和 recover 已隔离实测 |
 | VFS 与 serve | 四种 cache mode、VFS RC、HTTP、DLNA、WebDAV、FTP、SFTP、S3 和 NFS 已隔离实测 |
@@ -64,7 +65,7 @@ make build
 ./bin/rclone-123 check ./local-dir my123:destination/
 ```
 
-本后端有意不提供服务端 `Copy` 或 `Purge`。rclone core 会回退到 `Put`（仍可通过 MD5 命中秒传）以及逐 ID 删除。当前也不实现链接、分享、公开链接、修改时间写入、`ListR`、清理、变更通知和永久删除。
+同一 123Pan 配置内的远端文件复制使用服务端 `Copy`，不读取或重传文件正文；本地文件或其他后端来源仍由 rclone core 调用 `Put`，并可通过 MD5 命中秒传。本后端有意不提供快速 `Purge`，由 core 逐 ID 删除。当前也不实现链接、分享、公开链接、修改时间写入、`ListR`、清理、变更通知和永久删除。
 
 预期行为和发布门禁详见[后端说明](docs/123pan.md)、[rclone 能力清单](docs/capabilities.md)、[安全说明](docs/security.md)和[测试说明](docs/testing.md)。隔离实测及官方 Web 脱敏协议证据见[真实账号测试记录](docs/live-testing.md)和[协议证据夹具](protocol/README.md)，替换失败后的处理见[恢复与回滚](docs/recovery.md)。
 

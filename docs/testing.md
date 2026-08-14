@@ -40,4 +40,6 @@ manifest 对文件数、目录数、单文件大小和累计 payload 实施不�
 
 同一隔离活动还真实运行了 `lsd`、`lsf`、`lsjson`、`lsl`、`tree`、`size`、`about`、`cat`、`md5sum`、`hashsum`、`check --download`、`checksum`、`--fast-list`、`copyurl`、`rcat`、`--backup-dir`、`deletefile --dry-run` 和 core `purge`。`--copy-dest --dry-run` 稳定返回不支持且目标保持为空。
 
+上述活动封存后新增了服务端 Copy。当前测试已经逐字断言官方 Web 请求 JSON，覆盖同步完成、异步 0/1/2 轮询、同目录异名、跨目录、覆盖旧目标、开始响应丢失且不重放、任务失败、MD5 不符、跨 UID 拒绝和精确恢复 ID；rclone `operations.Copy` 的新建与覆盖契约也已通过。历史活动中的 core Copy 与 `--copy-dest` 结论保持原样，不冒充新实现的真实验证；原生 Copy、copyto、sync 与 `--copy-dest` 必须在新的隔离账号活动中重新闭环。
+
 本轮两个 sentinel 位于随机 anchor 内、活动 work root 外，已用于每一层实测的前后复核；它们不等同于专用空测试账号的稳定版门禁。稳定发布仍要求在专用空账号中重新建立非零隔离根和两个 work root 外的不可变 sentinel，运行完整 `test_all`、其他平台原生挂载，并完成连续七个自然日的 1 KiB canary。后续真实测试必须只在随机命名的 `rclone-test-[a-z0-9]{12,64}` anchor 中操作，并且只清理由本轮 ledger 记录的精确 ID。
