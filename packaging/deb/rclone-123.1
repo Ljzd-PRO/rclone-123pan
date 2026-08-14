@@ -1,0 +1,53 @@
+.TH RCLONE-123 1 "2026-08-15" "rclone-123pan" "用户命令"
+.SH 名称
+rclone-123 \- 支持 123 网盘个人盘的 rclone 定制版
+.SH 概要
+.B rclone-123
+.RI [ 全局选项 ] " 命令 " [ 命令选项 ] [ 参数 ...]
+.SH 描述
+.B rclone-123
+基于固定版 rclone 构建，并加入实验性的 123pan 个人盘后端。
+它支持上传、下载、同步、MD5 校验、秒传、服务端复制、软删除、VFS、serve 和其他适用的 rclone 功能。
+.PP
+123 网盘个人盘接口没有公开承诺兼容性。请先在新建的临时目录中使用少量、可丢失的数据验证，不要把网盘内容作为重要数据的唯一副本。
+.SH 快速开始
+.nf
+rclone-123 config
+rclone-123 lsf my123:
+rclone-123 copy ./本地目录 my123:备份目录 --checksum --progress
+.fi
+.PP
+运行
+.B rclone-123 help
+查看命令列表，或运行
+.B rclone-123 help flags
+查看全局选项。
+.SH 正确性与删除
+123 网盘个人盘不能可靠写入 rclone 使用的修改时间。正确性敏感的同步和 bisync 应使用
+.BR --checksum 。
+.PP
+删除操作只会把对象移入 123 网盘回收站。本项目不提供永久删除或清空回收站功能。第一次运行 sync、move、delete 或 purge 前应先使用
+.BR --dry-run 。
+.SH 配置文件
+默认配置文件由 rclone 决定，通常位于
+.IR ~/.config/rclone/rclone.conf 。
+运行
+.B rclone-123 config file
+可显示当前实际路径。卸载 Debian 包不会删除用户配置。
+.SH 文件
+.TP
+.I /usr/bin/rclone-123
+程序主文件。
+.TP
+.I /usr/share/doc/rclone-123pan/
+中文 README、发布说明、安全与兼容性文档、许可证状态、SBOM 和构建来源记录。
+.SH 参见
+完整中文文档与版本发布：
+.UR https://github.com/Ljzd-PRO/rclone-123pan
+.UE
+.PP
+rclone 官方文档：
+.UR https://rclone.org/docs/
+.UE
+.SH 问题报告
+请在项目仓库提交问题，并移除日志中的账号、密码、token、Cookie、Authorization 和签名 URL。

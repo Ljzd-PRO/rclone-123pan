@@ -1,0 +1,12 @@
+Package: rclone-123pan
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Maintainer: Ljzd-PRO <me@ljzd.link>
+Installed-Size: @INSTALLED_SIZE@
+Homepage: https://github.com/Ljzd-PRO/rclone-123pan
+Description: 支持 123 网盘个人盘的 rclone 定制版
+ rclone-123pan 将固定版 rclone 与实验性的 123pan 个人盘后端打包在一起，
+ 支持上传、下载、同步、MD5 校验、秒传、服务端复制和软删除。
+ 本包安装独立命令 rclone-123，可与 Debian 的官方 rclone 包并存。

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 plugin_version=${PLUGIN_VERSION:-0.1.0-alpha.1}
@@ -19,7 +19,7 @@ case "$dist:$stage" in
     ;;
 esac
 
-for tool in go git tar gzip zip find touch; do
+for tool in go git tar gzip zip find touch dpkg-deb md5sum sed; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "缺少构建依赖：$tool" >&2
     exit 1
@@ -48,16 +48,24 @@ echo "$targets" | while read -r goos goarch; do
   package_dir="$stage/$package"
   mkdir -p "$package_dir"
   binary="$package_dir/rclone-123"
+  binary_name=rclone-123
   if [ "$goos" = windows ]; then
     binary="$binary.exe"
+    binary_name=rclone-123.exe
   fi
   echo "building $goos/$goarch"
   CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
     -buildvcs=false -trimpath -tags noselfupdate \
     -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=${plugin_version}-123pan" \
     -o "$binary" ./cmd/rclone-123
-  go version -m "$binary" > "$package_dir/BUILDINFO.txt"
+  go version -m "$binary" | sed "1s|^[^:]*:|$binary_name:|" > "$package_dir/BUILDINFO.txt"
   cp README.md RELEASE_NOTES.md LICENSING.md "$sbom" "$provenance" "$package_dir/"
+  if [ "$goos" = linux ]; then
+    deb="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}_${goos}_${goarch}.deb"
+    ./tools/build-deb.sh \
+      "$binary" "$goarch" "$plugin_version" "$rclone_version" "$source_epoch" \
+      "$sbom" "$provenance" "$deb"
+  fi
   find "$package_dir" -exec touch -h -d "@$source_epoch" {} +
   if [ "$goos" = windows ]; then
     (cd "$stage" && zip -X -q -r "$dist/$package.zip" "$package")
@@ -68,8 +76,8 @@ done
 
 rm -rf -- "$stage"
 if command -v sha256sum >/dev/null 2>&1; then
-  (cd "$dist" && sha256sum ./*.tar.gz ./*.zip ./*.json | sort -k2 > SHA256SUMS)
+  (cd "$dist" && sha256sum ./*.tar.gz ./*.zip ./*.deb ./*.json | sort -k2 > SHA256SUMS)
 else
-  (cd "$dist" && shasum -a 256 ./*.tar.gz ./*.zip ./*.json | sort -k2 > SHA256SUMS)
+  (cd "$dist" && shasum -a 256 ./*.tar.gz ./*.zip ./*.deb ./*.json | sort -k2 > SHA256SUMS)
 fi
 echo "release artifacts written to $dist"
