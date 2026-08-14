@@ -136,6 +136,80 @@ rclone-123 config
 6. 普通用户无需修改高级设置，保持默认值即可；
 7. 确认保存配置。
 
+#### 完整初始化示例
+
+下面演示如何创建一个名为 `my123` 的 remote。示例账号 `user@example.com` 是虚构的，请换成你自己的 123 网盘手机号或邮箱。密码输入时终端不会显示字符，这是正常现象。
+
+这段记录来自当前项目实际构建的 `rclone-123`。参照 rclone 官方各后端文档的写法，存储类型列表中与本项目无关的条目以“省略”标记代替；除此以外，从首次创建到保存并退出的交互均完整保留。存储类型序号可能随 rclone 版本变化，直接输入 `123pan` 最稳妥。
+
+```text
+No remotes found, make a new one?
+n) New remote
+s) Set configuration password
+q) Quit config
+n/s/q> n
+
+Enter name for new remote.
+name> my123
+
+Option Storage.
+Type of storage to configure.
+Choose a number from below, or type in your own value.
+ 1 / 123 网盘个人账号（实验性） -
+   \ (123pan)
+[省略其他存储类型]
+Storage> 123pan
+
+Option user.
+123 网盘个人账号使用的手机号或邮箱。
+Enter a value.
+user> user@example.com
+
+Option pass.
+123 网盘账号密码。
+Choose an alternative below.
+y) Yes, type in my own password
+g) Generate random password
+y/g> y
+Enter the password:
+password:
+Confirm the password:
+password:
+
+Edit advanced config?
+y) Yes
+n) No (default)
+y/n> n
+
+Configuration complete.
+Options:
+- type: 123pan
+- user: user@example.com
+- pass: *** ENCRYPTED ***
+Keep this "my123" remote?
+y) Yes this is OK (default)
+e) Edit this remote
+d) Delete this remote
+y/e/d> y
+
+Current remotes:
+
+Name                 Type
+====                 ====
+my123                123pan
+
+e) Edit existing remote
+n) New remote
+d) Delete remote
+r) Rename remote
+c) Copy remote
+s) Set configuration password
+q) Quit config
+e/n/d/r/c/s/q> q
+```
+
+如果开头出现 `no overview data found for "123pan"`，这是当前固定版 rclone 对树外后端文档的已知提示，不代表配置失败，详见下方[常见问题](#为什么命令提示-no-overview-data-found-for-123pan)。首次运行时还可能提示配置文件尚不存在；完成上述保存后，程序会自动创建它。
+
 配置中的密码会经过 rclone obscure 处理后保存，但 obscure **不是加密保险箱**。能够读取 rclone 配置文件的人仍可能恢复密码，请保护好该文件。以下命令可以显示配置文件位置：
 
 ```console
