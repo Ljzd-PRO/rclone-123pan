@@ -2,6 +2,7 @@
 
 ## 尚未发布
 
+- 将主程序、`cmd` 入口、Debian 安装路径、man page、构建脚本和文档统一命名为 `rclone-123pan`。
 - 版本统一为 `v<rclone版本>-123pan.<适配修订号>`；当前源码派生 `v1.75.0-123pan.1`，二进制、归档、Debian、SBOM、来源记录和 Release 标签由同一工具生成，CI 只附加 build metadata。
 - 将 GitHub Actions 的 workflow、job、step 和手动输入说明统一为常用英文名称，并同步 workflow 间的名称依赖。
 - 将项目原创代码、测试、构建脚本和文档明确以 MIT 许可证发布，并在源码及所有发布工件中包含标准许可证文本与作者链接。

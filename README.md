@@ -13,7 +13,7 @@
 
 ## 简介
 
-`rclone-123pan` 是静态集成 123 网盘 backend 的定制 rclone 发行版，remote 类型为 `123pan`，主程序为 `rclone-123`。它保留 rclone 的命令、配置格式和生态能力，同时实现 123 网盘个人盘所需的认证、文件操作、传输与校验逻辑。
+`rclone-123pan` 是静态集成 123 网盘 backend 的定制 rclone 发行版，remote 类型为 `123pan`，主程序为 `rclone-123pan`。它保留 rclone 的命令、配置格式和生态能力，同时实现 123 网盘个人盘所需的认证、文件操作、传输与校验逻辑。
 
 项目提供 Windows、macOS 和 Linux 预构建程序，以及 Debian/Ubuntu 安装包；也可以作为 out-of-tree backend 从源码构建。
 
@@ -36,7 +36,7 @@
 
 从 [Releases](https://github.com/Ljzd-PRO/rclone-123pan/releases) 下载对应平台的压缩包或 Debian 安装包。没有可用 Release 时，可从 [GitHub Actions 构建记录](https://github.com/Ljzd-PRO/rclone-123pan/actions/workflows/internal-alpha.yml) 下载自动构建工件。
 
-压缩包解压后直接运行 `rclone-123`；Windows 程序名为 `rclone-123.exe`。
+压缩包解压后直接运行 `rclone-123pan`；Windows 程序名为 `rclone-123pan.exe`。
 
 Debian、Ubuntu 及其衍生系统可以直接安装下载的 `.deb`：
 
@@ -44,11 +44,11 @@ Debian、Ubuntu 及其衍生系统可以直接安装下载的 `.deb`：
 sudo apt install ./rclone-123pan_*.deb
 ```
 
-Debian 包安装的命令为 `/usr/bin/rclone-123`，可与发行版提供的 `rclone` 并存；卸载使用 `sudo apt remove rclone-123pan`。
+Debian 包安装的命令为 `/usr/bin/rclone-123pan`，可与发行版提供的 `rclone` 并存；卸载使用 `sudo apt remove rclone-123pan`。
 
 ## 配置
 
-运行 `rclone-123 config`，新建 remote 并选择 `123pan`。输入 123 网盘手机号或邮箱、账号密码，其他选项通常保持默认值。配置完成后即可使用 `remote:path` 形式访问网盘。
+运行 `rclone-123pan config`，新建 remote 并选择 `123pan`。输入 123 网盘手机号或邮箱、账号密码，其他选项通常保持默认值。配置完成后即可使用 `remote:path` 形式访问网盘。
 
 密码由 rclone obscure 后保存在配置文件中；obscure 不等同于加密保险箱，应限制配置文件的访问权限。
 
@@ -127,9 +127,9 @@ e/n/d/r/c/s/q> q
 以下示例以 `my123` 为 remote；完整参数与命令说明见 [rclone 文档](https://rclone.org/docs/) 和 [命令索引](https://rclone.org/commands/)。
 
 ```console
-rclone-123 lsf my123:                                      # 列出网盘根目录
-rclone-123 copy ./data my123:backup --progress             # 上传本地目录
-rclone-123 sync ./data my123:backup --checksum --dry-run   # 预演同步
+rclone-123pan lsf my123:                                      # 列出网盘根目录
+rclone-123pan copy ./data my123:backup --progress             # 上传本地目录
+rclone-123pan sync ./data my123:backup --checksum --dry-run   # 预演同步
 ```
 
 ## 约束与安全
@@ -155,7 +155,7 @@ cd rclone-123pan
 make build
 ```
 
-生成的程序位于 `bin/rclone-123`。
+生成的程序位于 `bin/rclone-123pan`。
 
 ## 文档
 

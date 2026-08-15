@@ -57,17 +57,17 @@ echo "$targets" | while read -r goos goarch; do
   package="rclone-123pan_${product_version}_${goos}_${goarch}"
   package_dir="$stage/$package"
   mkdir -p "$package_dir"
-  binary="$package_dir/rclone-123"
-  binary_name=rclone-123
+  binary="$package_dir/rclone-123pan"
+  binary_name=rclone-123pan
   if [ "$goos" = windows ]; then
     binary="$binary.exe"
-    binary_name=rclone-123.exe
+    binary_name=rclone-123pan.exe
   fi
   echo "building $goos/$goarch"
   CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
     -buildvcs=false -trimpath -tags noselfupdate \
     -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=${version_suffix}" \
-    -o "$binary" ./cmd/rclone-123
+    -o "$binary" ./cmd/rclone-123pan
   go version -m "$binary" | sed "1s|^[^:]*:|$binary_name:|" > "$package_dir/BUILDINFO.txt"
   cp README.md RELEASE_NOTES.md LICENSE LICENSING.md "$sbom" "$provenance" "$package_dir/"
   if [ "$goos" = linux ]; then

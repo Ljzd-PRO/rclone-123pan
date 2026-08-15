@@ -4,7 +4,7 @@
 
 构建矩阵覆盖 Linux amd64/arm64、Windows amd64 和 macOS amd64/arm64。其他目标在经过明确测试前仅支持从源码构建。
 
-Debian 包支持 `amd64` 与 `arm64`，适用于具备兼容 `dpkg`/`apt` 的 Debian、Ubuntu 及其衍生系统。包名为 `rclone-123pan`，主程序安装为 `/usr/bin/rclone-123`；它不提供或替换 `/usr/bin/rclone`，因此可以与发行版的官方 rclone 包并存。`.deb` 不携带 apt 软件源、自动升级服务、安装脚本或卸载脚本，也不会创建、修改或删除用户配置。其他 Debian 架构、RPM、Arch Linux、Alpine 和容器镜像尚未作为安装包交付。
+Debian 包支持 `amd64` 与 `arm64`，适用于具备兼容 `dpkg`/`apt` 的 Debian、Ubuntu 及其衍生系统。包名为 `rclone-123pan`，主程序安装为 `/usr/bin/rclone-123pan`；它不提供或替换 `/usr/bin/rclone`，因此可以与发行版的官方 rclone 包并存。`.deb` 不携带 apt 软件源、自动升级服务、安装脚本或卸载脚本，也不会创建、修改或删除用户配置。其他 Debian 架构、RPM、Arch Linux、Alpine 和容器镜像尚未作为安装包交付。
 
 五平台核心工件固定使用 `CGO_ENABLED=0`。当前 macOS 核心工件只含 `nfsmount`，不含 `mount` 子命令；本轮 `nfsmount` 与独立 NFS serve + `mount_nfs` 均已真实挂载通过。需要 macFUSE/WinFsp 等平台依赖的其他原生挂载仍必须作为单独工件构建和测试；单个平台或 serve WebDAV 通过不能替代其他 native runner 的结论。
 

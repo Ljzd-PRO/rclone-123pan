@@ -577,7 +577,7 @@ func (m *Manifest) Save(path string) error {
 		return err
 	}
 	directory := filepath.Dir(path)
-	temporary, err := os.CreateTemp(directory, ".rclone-123-live-manifest-*")
+	temporary, err := os.CreateTemp(directory, ".rclone-123pan-live-manifest-*")
 	if err != nil {
 		return err
 	}

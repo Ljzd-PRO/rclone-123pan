@@ -78,7 +78,7 @@ jobs:
           suffix=$(./tools/version.sh suffix)
           go build -buildvcs=false -trimpath -tags noselfupdate \
             -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=$suffix" \
-            -o /tmp/rclone-123 ./cmd/rclone-123
+            -o /tmp/rclone-123pan ./cmd/rclone-123pan
 
   debian-package:
     name: Debian package
@@ -108,6 +108,6 @@ jobs:
           package="dist/rclone-123pan_${product_version}_linux_amd64.deb"
           sudo dpkg --install "$package"
           test "$(dpkg-query --show --showformat='${Package}' rclone-123pan)" = "rclone-123pan"
-          /usr/bin/rclone-123 version
+          /usr/bin/rclone-123pan version
           sudo dpkg --remove rclone-123pan
-          test ! -e /usr/bin/rclone-123
+          test ! -e /usr/bin/rclone-123pan

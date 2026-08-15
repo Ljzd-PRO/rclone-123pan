@@ -1,14 +1,14 @@
 #!/bin/sh
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 rclone_commit=9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048
 module=github.com/ljzd/rclone-123pan
 go_cmd=${RCLONE_123_GO:-go}
-checkout=$(mktemp -d "${TMPDIR:-/tmp}/rclone-123-contract.XXXXXX")
+checkout=$(mktemp -d "${TMPDIR:-/tmp}/rclone-123pan-contract.XXXXXX")
 cleanup() {
   case "$checkout" in
-    "${TMPDIR:-/tmp}"/rclone-123-contract.*) rm -rf -- "$checkout" ;;
+    "${TMPDIR:-/tmp}"/rclone-123pan-contract.*) rm -rf -- "$checkout" ;;
     *) echo "拒绝清理意外路径：$checkout" >&2 ;;
   esac
 }

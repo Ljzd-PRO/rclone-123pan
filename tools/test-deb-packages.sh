@@ -46,17 +46,17 @@ for arch in amd64 arm64; do
   dpkg-deb --extract "$package" "$extract"
   dpkg-deb --control "$package" "$extract/DEBIAN"
 
-  test -x "$extract/usr/bin/rclone-123"
+  test -x "$extract/usr/bin/rclone-123pan"
   test ! -e "$extract/usr/bin/rclone"
   test -s "$extract/usr/share/doc/rclone-123pan/README.md"
   test -s "$extract/usr/share/doc/rclone-123pan/LICENSE"
   test -s "$extract/usr/share/doc/rclone-123pan/LICENSING.md"
   test -s "$extract/usr/share/doc/rclone-123pan/SBOM.cdx.json"
   test -s "$extract/usr/share/doc/rclone-123pan/PROVENANCE.json"
-  test -s "$extract/usr/share/man/man1/rclone-123.1"
+  test -s "$extract/usr/share/man/man1/rclone-123pan.1"
   head -n 1 "$extract/usr/share/doc/rclone-123pan/LICENSE" | grep -Fx 'MIT License' >/dev/null
   grep -F 'https://github.com/Ljzd-PRO' "$extract/usr/share/doc/rclone-123pan/LICENSE" >/dev/null
-  head -n 1 "$extract/usr/share/doc/rclone-123pan/BUILDINFO.txt" | grep -F '/usr/bin/rclone-123:' >/dev/null
+  head -n 1 "$extract/usr/share/doc/rclone-123pan/BUILDINFO.txt" | grep -F '/usr/bin/rclone-123pan:' >/dev/null
 
   (
     cd "$extract"
@@ -65,7 +65,7 @@ for arch in amd64 arm64; do
 
   case "$(uname -m):$arch" in
     x86_64:amd64|amd64:amd64|aarch64:arm64|arm64:arm64)
-      version_output=$("$extract/usr/bin/rclone-123" version 2>&1)
+      version_output=$("$extract/usr/bin/rclone-123pan" version 2>&1)
       printf '%s\n' "$version_output" | grep -F "rclone v${product_version}" >/dev/null
       ;;
   esac
