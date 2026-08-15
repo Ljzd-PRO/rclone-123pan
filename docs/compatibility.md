@@ -4,7 +4,36 @@
 
 构建矩阵覆盖 Linux amd64/arm64、Windows amd64 和 macOS amd64/arm64。其他目标在经过明确测试前仅支持从源码构建。
 
-Debian 包支持 `amd64` 与 `arm64`，适用于具备兼容 `dpkg`/`apt` 的 Debian、Ubuntu 及其衍生系统。包名为 `rclone-123pan`，主程序安装为 `/usr/bin/rclone-123pan`；它不提供或替换 `/usr/bin/rclone`，因此可以与发行版的官方 rclone 包并存。`.deb` 不携带 apt 软件源、自动升级服务、安装脚本或卸载脚本，也不会创建、修改或删除用户配置。其他 Debian 架构、RPM、Arch Linux、Alpine 和容器镜像尚未作为安装包交付。
+Debian 包支持 `amd64` 与 `arm64`，适用于具备兼容 `dpkg`/`apt` 的 Debian、Ubuntu 及其衍生系统。包名和主程序均为 `rclone`，安装到 `/usr/bin/rclone`；它会替换系统中已安装的其他 rclone Debian 包，不能与发行版官方包并存。`.deb` 不携带 apt 软件源、自动升级服务、安装脚本或卸载脚本，也不会创建、修改或删除用户配置。其他 Debian 架构、RPM、Arch Linux、Alpine 和容器镜像尚未作为安装包交付。
+
+## 替换已有 rclone 程序
+
+覆盖程序前必须停止正在运行的传输、mount、serve、RC 服务和其他 rclone 进程，并保留原程序备份。配置文件与二进制相互独立，不需要移动或覆盖。
+
+Linux 与 macOS 使用 `whereis rclone` 查看所有已知位置；其输出可能同时包含程序和 man page，因此再用 `command -v rclone` 取得当前 shell 实际执行的路径：
+
+```console
+whereis rclone
+RCLONE_TARGET="$(command -v rclone)"
+test -n "$RCLONE_TARGET"
+if [ ! -e "${RCLONE_TARGET}.official" ]; then sudo cp -p "$RCLONE_TARGET" "${RCLONE_TARGET}.official"; fi
+sudo install -m 0755 ./rclone "$RCLONE_TARGET"
+"$RCLONE_TARGET" version
+```
+
+若目标路径属于当前用户且可写，可以去掉 `sudo`。Debian/Ubuntu 上若原程序由 `dpkg` 管理，应优先安装本项目 `.deb`，避免包数据库记录与磁盘文件不一致。
+
+Windows 使用 PowerShell 查询 PATH 中全部同名程序，并替换优先级最高的应用程序。目标位于 `Program Files` 等受保护目录时，需要使用管理员 PowerShell：
+
+```powershell
+Get-Command rclone.exe -All | Select-Object -ExpandProperty Source
+$RcloneTarget = (Get-Command rclone.exe -CommandType Application -ErrorAction Stop).Source
+if (-not (Test-Path "$RcloneTarget.official")) { Copy-Item $RcloneTarget "$RcloneTarget.official" }
+Copy-Item .\rclone.exe $RcloneTarget -Force
+& $RcloneTarget version
+```
+
+Homebrew、apt、winget、Chocolatey、Scoop 等包管理器后续升级可能恢复其维护的官方程序。需要回退时，停止所有 rclone 进程后把 `.official` 备份复制回原路径。本项目二进制强制启用 `noselfupdate`；不要尝试使用官方 `rclone selfupdate` 更新它。
 
 五平台核心工件固定使用 `CGO_ENABLED=0`。当前 macOS 核心工件只含 `nfsmount`，不含 `mount` 子命令；本轮 `nfsmount` 与独立 NFS serve + `mount_nfs` 均已真实挂载通过。需要 macFUSE/WinFsp 等平台依赖的其他原生挂载仍必须作为单独工件构建和测试；单个平台或 serve WebDAV 通过不能替代其他 native runner 的结论。
 
