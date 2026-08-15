@@ -2,6 +2,7 @@
 
 ## 尚未发布
 
+- 将项目原创代码、测试、构建脚本和文档明确以 MIT 许可证发布，并在源码及所有发布工件中包含标准许可证文本与作者链接。
 - 统一后端目录、import path、CLI flag 前缀和测试 build tag 为 `123pan`；Go 包声明采用语法合法且同序的 `_123pan`。
 - 增加自动测试、main 分支成功后自动构建和标签/手动 Release workflow；五平台工件通过双重摘要验证，Release 正文固定读取 `RELEASE_NOTES.md`，仅最终发布 job 具有写权限。
 - 根据 GitHub runner 实测，将 checkout、Go 环境和 artifact actions 升级到当前 Node.js 24 稳定主版本，消除 Node.js 20 弃用兼容性警告。
@@ -29,4 +30,4 @@
 - 真实验证 checksum bisync 的 resync、双向增量、check-access、max-delete 阻断与 recover，以及四种 VFS cache mode 和 VFS RC。
 - 真实验证 HTTP、DLNA、WebDAV、FTP、SFTP、S3、NFS serve，macOS nfsmount/full-cache 随机写与 truncate，以及 crypt 包装 remote；离线任务 live 因会枚举个人账号既有任务而有意阻断。
 - 增加 408/429/503 故障矩阵、10,000 组上传规划模型、250 步移动模型、两个 fuzz 入口、100 次取消资源回收，以及真实流过 1 GiB mock 数据面的有界内存测试。
-- 五个核心目标固定使用 `noselfupdate`、`CGO_ENABLED=0`、`-trimpath` 与确定性归档；生成 CycloneDX SBOM、来源记录和 SHA-256 校验值。其他平台原生挂载、七日 canary、专用空账号契约和许可审查仍阻断稳定版。
+- 五个核心目标固定使用 `noselfupdate`、`CGO_ENABLED=0`、`-trimpath` 与确定性归档；生成 CycloneDX SBOM、来源记录和 SHA-256 校验值。其他平台原生挂载、七日 canary、专用空账号契约和第三方来源审查仍阻断稳定版。

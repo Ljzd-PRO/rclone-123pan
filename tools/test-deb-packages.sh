@@ -51,10 +51,13 @@ for arch in amd64 arm64; do
   test -x "$extract/usr/bin/rclone-123"
   test ! -e "$extract/usr/bin/rclone"
   test -s "$extract/usr/share/doc/rclone-123pan/README.md"
+  test -s "$extract/usr/share/doc/rclone-123pan/LICENSE"
   test -s "$extract/usr/share/doc/rclone-123pan/LICENSING.md"
   test -s "$extract/usr/share/doc/rclone-123pan/SBOM.cdx.json"
   test -s "$extract/usr/share/doc/rclone-123pan/PROVENANCE.json"
   test -s "$extract/usr/share/man/man1/rclone-123.1"
+  head -n 1 "$extract/usr/share/doc/rclone-123pan/LICENSE" | grep -Fx 'MIT License' >/dev/null
+  grep -F 'https://github.com/Ljzd-PRO' "$extract/usr/share/doc/rclone-123pan/LICENSE" >/dev/null
   head -n 1 "$extract/usr/share/doc/rclone-123pan/BUILDINFO.txt" | grep -F '/usr/bin/rclone-123:' >/dev/null
 
   (

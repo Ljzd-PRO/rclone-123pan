@@ -1,11 +1,13 @@
-# 许可证状态
+# 许可说明
 
-本仓库在内部开发期间有意暂不确定最终许可证。rclone 使用 MIT 许可证；OpenList 使用 AGPL-3.0 许可证。
+本项目原创源码、测试、构建脚本和文档采用 [MIT License](LICENSE) 发布。
 
-在完成来源与许可证审查前：
+版权所有 © 2026 [Ljzd-PRO](https://github.com/Ljzd-PRO)。
 
-- 不得公开发布源码或二进制文件；
-- 只能将 OpenList 用作协议事实和独立编写测试向量的来源；
-- 任何直接改编其源码的行为都必须视为一次 AGPL 合规事件。
+## 第三方组件
 
-本仓库有意不包含任何 vendoring 的 OpenList 文件。辅助脚本只会把两个参考仓库克隆到被 Git 忽略的 `.references/` 路径，并校验其 commit。任何公开发布之前，都必须审查完整 diff 是否存在表达性相似，选择并加入本仓库的许可证，记录第三方声明与 SBOM 输出，并判断审查结果是否要求按兼容 AGPL-3.0 的条款发布本插件。测试通过并不代表已解除此门禁。
+- rclone 采用 MIT 许可证。本项目静态集成 rclone，其原始版权与许可声明继续适用。
+- OpenList 采用 AGPL-3.0 许可证，仅用于识别可观察的协议事实和建立独立测试向量。本仓库不复制、修改或 vendoring OpenList 的函数体、注释、测试及其他表达性源码。
+- Go module、构建工具及其他第三方组件保留各自的版权和许可证；发布工件中的 SBOM 用于记录具体依赖。
+
+本项目的 MIT 授权不覆盖或重新授权任何第三方组件。来源固定和 clean-room 边界分别记录在 [SOURCE_PINS.md](SOURCE_PINS.md) 与 [PROVENANCE.md](PROVENANCE.md)。

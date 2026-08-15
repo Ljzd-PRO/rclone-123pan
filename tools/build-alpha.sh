@@ -59,7 +59,7 @@ echo "$targets" | while read -r goos goarch; do
     -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=${plugin_version}-123pan" \
     -o "$binary" ./cmd/rclone-123
   go version -m "$binary" | sed "1s|^[^:]*:|$binary_name:|" > "$package_dir/BUILDINFO.txt"
-  cp README.md RELEASE_NOTES.md LICENSING.md "$sbom" "$provenance" "$package_dir/"
+  cp README.md RELEASE_NOTES.md LICENSE LICENSING.md "$sbom" "$provenance" "$package_dir/"
   if [ "$goos" = linux ]; then
     deb="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}_${goos}_${goarch}.deb"
     ./tools/build-deb.sh \

@@ -16,7 +16,7 @@ sbom=$6
 provenance=$7
 output=$8
 
-for file in "$binary" "$sbom" "$provenance" "$root/packaging/deb/control.in" "$root/packaging/deb/rclone-123.1"; do
+for file in "$binary" "$sbom" "$provenance" "$root/LICENSE" "$root/LICENSING.md" "$root/packaging/deb/control.in" "$root/packaging/deb/rclone-123.1"; do
   if [ ! -f "$file" ]; then
     echo "Debian 打包输入不存在：$file" >&2
     exit 1
@@ -88,6 +88,7 @@ mkdir -p "$package_root/DEBIAN" "$package_root/usr/bin" "$guide_dir" "$man_dir"
 install -m 0755 "$binary" "$package_root/usr/bin/rclone-123"
 install -m 0644 "$root/README.md" "$doc_dir/README.md"
 install -m 0644 "$root/RELEASE_NOTES.md" "$doc_dir/RELEASE_NOTES.md"
+install -m 0644 "$root/LICENSE" "$doc_dir/LICENSE"
 install -m 0644 "$root/LICENSING.md" "$doc_dir/LICENSING.md"
 install -m 0644 "$root/docs/123pan.md" "$guide_dir/123pan.md"
 install -m 0644 "$root/docs/capabilities.md" "$guide_dir/capabilities.md"

@@ -165,3 +165,7 @@ make build
 - [安全说明](docs/security.md)与[恢复说明](docs/recovery.md)
 - [测试说明](docs/testing.md)与[真实账号测试记录](docs/live-testing.md)
 - [来源说明](PROVENANCE.md)、[来源固定](SOURCE_PINS.md)与[许可说明](LICENSING.md)
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE)，作者为 [Ljzd-PRO](https://github.com/Ljzd-PRO)。第三方组件及 clean-room 边界见[许可说明](LICENSING.md)。
