@@ -2,6 +2,7 @@
 
 ## 尚未发布
 
+- 将 GitHub Actions 的 workflow、job、step 和手动输入说明统一为常用英文名称，并同步 workflow 间的名称依赖。
 - 将项目原创代码、测试、构建脚本和文档明确以 MIT 许可证发布，并在源码及所有发布工件中包含标准许可证文本与作者链接。
 - 统一后端目录、import path、CLI flag 前缀和测试 build tag 为 `123pan`；Go 包声明采用语法合法且同序的 `_123pan`。
 - 增加自动测试、main 分支成功后自动构建和标签/手动 Release workflow；五平台工件通过双重摘要验证，Release 正文固定读取 `RELEASE_NOTES.md`，仅最终发布 job 具有写权限。

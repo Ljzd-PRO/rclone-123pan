@@ -1,4 +1,4 @@
-name: 构建并发布 Release
+name: Release
 
 on:
   push:
@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 已存在的发布标签，例如 v0.1.0-alpha.1
+        description: Existing release tag, for example v0.1.0-alpha.1
         required: true
         type: string
       prerelease:
-        description: 标记为预发布版本
+        description: Mark as a prerelease
         required: true
         default: true
         type: boolean
       draft:
-        description: 创建为草稿 Release
+        description: Create a draft release
         required: true
         default: false
         type: boolean
@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   metadata:
-    name: 校验发布标签与说明
+    name: Validate release metadata
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -43,7 +43,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
           fetch-depth: 0
-      - name: 校验标签、提交与发布说明
+      - name: Validate tag, commit, and release notes
         id: release
         env:
           REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
@@ -87,7 +87,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   quality:
-    name: 完整质量门禁
+    name: Quality gate
     needs: metadata
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -102,20 +102,20 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go test -race ./...
-      - name: 模糊测试严格响应 envelope
+      - name: Fuzz strict response envelope
         run: go test ./backend/123pan -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=5s
-      - name: 模糊测试上传分片规划
+      - name: Fuzz upload part planning
         run: go test ./backend/123pan -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=5s
-      - name: 检查 GitHub Actions workflow
+      - name: Lint GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-      - name: 固定版本静态检查
+      - name: Static analysis
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.4.0
           args: --timeout=10m
 
   contract:
-    name: 固定 rclone 契约
+    name: rclone contract tests
     needs: metadata
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -130,7 +130,7 @@ jobs:
       - run: ./tools/test-rclone-contract.sh
 
   build:
-    name: 构建五平台与 Debian 发布工件
+    name: Build release artifacts
     needs:
       - metadata
       - quality
@@ -146,19 +146,19 @@ jobs:
         with:
           go-version: 1.25.0
           cache: true
-      - name: 准备发布归档工具
+      - name: Install packaging tools
         run: |
           if ! command -v zip >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install --yes zip dpkg
           fi
-      - name: 构建可复现发布工件
+      - name: Build reproducible release artifacts
         env:
           PLUGIN_VERSION: ${{ needs.metadata.outputs.version }}
         run: ./tools/build-alpha.sh
-      - name: 验证发布工件校验和
+      - name: Verify release checksums
         run: cd dist && sha256sum -c SHA256SUMS
-      - name: 验证 Debian 包
+      - name: Validate Debian packages
         run: ./tools/test-deb-packages.sh dist
       - uses: actions/upload-artifact@v7
         with:
@@ -168,7 +168,7 @@ jobs:
           retention-days: 14
 
   publish:
-    name: 发布 GitHub Release
+    name: Publish GitHub Release
     needs:
       - metadata
       - build
@@ -184,9 +184,9 @@ jobs:
         with:
           name: release-${{ needs.metadata.outputs.tag }}
           path: dist
-      - name: 再次验证发布工件
+      - name: Verify release artifacts
         run: cd dist && sha256sum -c SHA256SUMS
-      - name: 从 RELEASE_NOTES.md 创建 Release
+      - name: Create release from RELEASE_NOTES.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.metadata.outputs.tag }}

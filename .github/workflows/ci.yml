@@ -1,4 +1,4 @@
-name: 持续集成
+name: CI
 
 on:
   push:
@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -20,19 +21,20 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go test -race ./...
-      - name: 模糊测试严格响应 envelope
+      - name: Fuzz strict response envelope
         run: go test ./backend/123pan -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=5s
-      - name: 模糊测试上传分片规划
+      - name: Fuzz upload part planning
         run: go test ./backend/123pan -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=5s
-      - name: 固定版本静态检查
+      - name: Static analysis
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.4.0
           args: --timeout=10m
-      - name: 检查 GitHub Actions workflow
+      - name: Lint GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
   contract-tests:
+    name: rclone contract tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -43,6 +45,7 @@ jobs:
       - run: ./tools/test-rclone-contract.sh
 
   build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -64,7 +67,7 @@ jobs:
         with:
           go-version: 1.25.0
           cache: true
-      - name: 构建 ${{ matrix.goos }}/${{ matrix.goarch }}
+      - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -72,7 +75,7 @@ jobs:
         run: go build -trimpath -tags noselfupdate -o /tmp/rclone-123 ./cmd/rclone-123
 
   debian-package:
-    name: 构建并安装测试 Debian 包
+    name: Debian package
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -83,17 +86,17 @@ jobs:
         with:
           go-version: 1.25.0
           cache: true
-      - name: 准备 Debian 打包工具
+      - name: Install packaging tools
         run: |
           if ! command -v zip >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install --yes zip dpkg
           fi
-      - name: 构建发布工件与 Debian 包
+      - name: Build release artifacts and Debian packages
         run: ./tools/build-alpha.sh
-      - name: 校验 Debian 包结构
+      - name: Validate Debian packages
         run: ./tools/test-deb-packages.sh dist
-      - name: 实际安装并卸载 amd64 Debian 包
+      - name: Install and remove amd64 Debian package
         run: |
           package="dist/rclone-123pan_${PLUGIN_VERSION}_rclone-v1.75.0_linux_amd64.deb"
           sudo dpkg --install "$package"

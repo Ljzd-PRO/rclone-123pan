@@ -1,9 +1,9 @@
-name: 自动构建工件
+name: Build Artifacts
 
 on:
   workflow_run:
     workflows:
-      - 持续集成
+      - CI
     types:
       - completed
     branches:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       plugin_version:
-        description: 手动构建版本（不含 rclone 固定版本；留空时自动生成）
+        description: Artifact version without the pinned rclone version; leave empty to generate one
         required: false
         default: 0.1.0-alpha.1
 
@@ -20,6 +20,7 @@ permissions:
 
 jobs:
   build:
+    name: Build artifacts
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -32,13 +33,13 @@ jobs:
         with:
           go-version: 1.25.0
           cache: true
-      - name: 准备发布归档工具
+      - name: Install packaging tools
         run: |
           if ! command -v zip >/dev/null 2>&1 || ! command -v dpkg-deb >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install --yes zip dpkg
           fi
-      - name: 确定构建版本
+      - name: Resolve build version
         id: version
         env:
           INPUT_VERSION: ${{ inputs.plugin_version }}
@@ -54,15 +55,15 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      - name: 构建可复现工件
+      - name: Build reproducible artifacts
         env:
           PLUGIN_VERSION: ${{ steps.version.outputs.version }}
         run: ./tools/build-alpha.sh
-      - name: 验证校验和
+      - name: Verify checksums
         run: cd dist && sha256sum -c SHA256SUMS
-      - name: 验证 Debian 包
+      - name: Validate Debian packages
         run: ./tools/test-deb-packages.sh dist
-      - name: 上传工作流工件
+      - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: rclone-123pan_${{ steps.version.outputs.version }}_rclone-v1.75.0
