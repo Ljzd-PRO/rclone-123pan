@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/rclone-123pan-logo.png" alt="rclone-123pan 项目 Logo" width="220">
+
 # rclone-123pan
 
 **在 Windows、macOS 和 Linux 上，用 rclone 管理 123 网盘个人盘**
