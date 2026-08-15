@@ -4,11 +4,12 @@
 
 ## 对应上游版本
 
-本发行版基于 [rclone v1.75.0](https://github.com/rclone/rclone/releases/tag/v1.75.0)，固定上游 commit 为 `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`。版本号 `v1.75.0-123pan.1` 中，`v1.75.0` 表示对应的上游 rclone 版本，`123pan.1` 表示本项目针对该上游版本的第 1 个适配修订。
+本发行版基于 [rclone v1.75.0](https://github.com/rclone/rclone/releases/tag/v1.75.0)，固定上游 commit 为 `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`。版本号 `v1.75.0-123pan.2` 中，`v1.75.0` 表示对应的上游 rclone 版本，`123pan.2` 表示本项目针对该上游版本的第 2 个适配修订。
 
 ## 主要变更
 
-- 版本统一为 `v<rclone版本>-123pan.<适配修订号>`，首个对应版本为 `v1.75.0-123pan.1`。
+- 增加只安装 GitHub 正式 Release 的一键安装脚本，支持平台识别、摘要与版本双重验证、一次性备份、原子替换及幂等更新。
+- 版本统一为 `v<rclone版本>-123pan.<适配修订号>`，当前版本为 `v1.75.0-123pan.2`。
 - 基于 rclone v1.75.0 提供独立的 `123pan` 树外后端和五平台定制二进制。
 - 支持严格列表、MD5、Range/Seek 下载、秒传、预签名分片上传和可恢复 Update。
 - 支持按精确 ID 验证的 Move、DirMove、软删除和安全空目录删除。
@@ -19,7 +20,7 @@
 
 ## 发布工件
 
-每个平台压缩包均包含名为 `rclone`（Windows 为 `rclone.exe`）的定制二进制、README、许可说明、SBOM、构建来源和嵌入式构建信息。Linux amd64/arm64 还提供 `.deb`，安装 `/usr/bin/rclone`、中文项目文档和 `rclone(1)` 手册。请下载 `SHA256SUMS` 并在使用前验证工件摘要。
+每个平台压缩包均包含名为 `rclone`（Windows 为 `rclone.exe`）的定制二进制、README、许可说明、SBOM、构建来源和嵌入式构建信息。Linux amd64/arm64 还提供 `.deb`，安装 `/usr/bin/rclone`、中文项目文档和 `rclone(1)` 手册。独立 `install.sh` 资产用于 Linux/macOS 一键安装；它与其他工件一起列入 `SHA256SUMS`。
 
 ## 已知限制
 

@@ -2,8 +2,12 @@
 
 ## 尚未发布
 
+- 增加从 GitHub Releases 安装预构建发行版的一键安装脚本；支持 Linux/macOS amd64/arm64、最新正式版或固定标签、SHA-256 与候选版本双重校验、官方程序一次性备份、原子替换和幂等更新。安装脚本作为 Release 资产发布并纳入摘要，CI/Release 使用隔离 fixture 验证其不会访问源码分支。
+
+## v1.75.0-123pan.1 - 2026-08-15
+
 - 将 CI/Release 的压缩包、Debian 包、`cmd` 入口、主程序、安装路径和 man page 统一命名为 `rclone`；项目与 remote 标识仍分别为 `rclone-123pan` 和 `123pan`，并补充替换现有程序及回退说明。
-- 版本统一为 `v<rclone版本>-123pan.<适配修订号>`；当前源码派生 `v1.75.0-123pan.1`，二进制、归档、Debian、SBOM、来源记录和 Release 标签由同一工具生成，CI 只附加 build metadata。
+- 版本统一为 `v<rclone版本>-123pan.<适配修订号>`；首个发行版为 `v1.75.0-123pan.1`，二进制、归档、Debian、SBOM、来源记录和 Release 标签由同一工具生成，CI 只附加 build metadata。
 - 将 GitHub Actions 的 workflow、job、step 和手动输入说明统一为常用英文名称，并同步 workflow 间的名称依赖。
 - 将项目原创代码、测试、构建脚本和文档明确以 MIT 许可证发布，并在源码及所有发布工件中包含标准许可证文本与作者链接。
 - 统一后端目录、import path、CLI flag 前缀和测试 build tag 为 `123pan`；Go 包声明采用语法合法且同序的 `_123pan`。

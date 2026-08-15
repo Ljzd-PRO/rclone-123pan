@@ -14,4 +14,6 @@
 
 自动测试和构建 workflow 只授予 `contents: read`。Release workflow 也默认只读，只有在全部门禁通过后执行的发布 job 获得 `contents: write`，并使用 GitHub 自动生成、仅限当前仓库的 `GITHUB_TOKEN`。发布标签必须预先存在；workflow 不创建、移动或覆盖标签，也拒绝覆盖已有 Release。发布正文固定来自受版本控制的 `RELEASE_NOTES.md`。
 
+一键安装脚本会以安装目标所需的权限运行，因此其网络目标固定为本项目公开 GitHub Releases 和 GitHub Releases API，不接受 endpoint 或仓库覆盖。脚本只接受严格的正式版本标签格式，只从归档中提取精确的 `rclone` 路径，并在覆盖前同时验证 Release 中的 SHA-256 和候选程序报告的版本。摘要可以发现传输损坏或资产错配，但不能替代对 GitHub 发布账号本身的信任；要求更强审计时应先独立下载并检查 `install.sh`、`SHA256SUMS`、SBOM 和 provenance，再执行安装。
+
 serve、RC 和挂载测试默认只能绑定本机回环地址。若操作人员主动把 HTTP、DLNA、WebDAV、FTP、SFTP、S3 或 NFS 暴露到 LAN/公网，必须另行配置协议认证、TLS、主机防火墙和最小 remote root；这不属于后端默认安全边界。

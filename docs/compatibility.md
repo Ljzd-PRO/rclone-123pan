@@ -6,6 +6,14 @@
 
 Debian 包支持 `amd64` 与 `arm64`，适用于具备兼容 `dpkg`/`apt` 的 Debian、Ubuntu 及其衍生系统。包名和主程序均为 `rclone`，安装到 `/usr/bin/rclone`；它会替换系统中已安装的其他 rclone Debian 包，不能与发行版官方包并存。`.deb` 不携带 apt 软件源、自动升级服务、安装脚本或卸载脚本，也不会创建、修改或删除用户配置。其他 Debian 架构、RPM、Arch Linux、Alpine 和容器镜像尚未作为安装包交付。
 
+## 一键安装脚本
+
+Release 提供独立的 `install.sh`，仅支持 Linux/macOS 的 amd64 与 arm64。默认不接触源码分支，而是通过 GitHub `releases/latest` 选择最新的非草稿、非预发布版本，并下载与平台完全匹配的 `.tar.gz` 和同一 Release 的 `SHA256SUMS`。安装前依次验证归档摘要和候选二进制报告的版本，任一不匹配均在覆盖现有程序前失败。
+
+默认安装路径是 `/usr/local/bin/rclone`。可以在直接执行脚本时通过绝对路径环境变量 `RCLONE_INSTALL_DIR` 修改目录，也可以向脚本传入一个完整的已发布标签以固定版本。相同版本属于幂等成功，不重复下载归档；覆盖非本项目程序时只在备份不存在的情况下创建 `<目标路径>.official`。新程序先写入同目录临时文件，再以 rename 原子替换目标。
+
+安装器本身也作为 Release 资产发布并列入 `SHA256SUMS`。推荐入口使用 `/releases/latest/download/install.sh`，因此不会执行仓库 `main` 中尚未发布的脚本版本。
+
 ## 替换已有 rclone 程序
 
 覆盖程序前必须停止正在运行的传输、mount、serve、RC 服务和其他 rclone 进程，并保留原程序备份。配置文件与二进制相互独立，不需要移动或覆盖。

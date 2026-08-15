@@ -23,7 +23,7 @@ case "$dist:$stage" in
     ;;
 esac
 
-for tool in go git tar gzip zip find touch dpkg dpkg-deb md5sum sed awk grep; do
+for tool in go git tar gzip zip find touch dpkg dpkg-deb md5sum sed awk grep install; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "缺少构建依赖：$tool" >&2
     exit 1
@@ -32,6 +32,7 @@ done
 
 rm -rf -- "$dist"
 mkdir -p "$stage"
+install -m 0755 "$root/install.sh" "$dist/install.sh"
 
 sbom="$dist/rclone_${product_version}.cdx.json"
 go run ./tools/sbom \
@@ -85,8 +86,8 @@ done
 
 rm -rf -- "$stage"
 if command -v sha256sum >/dev/null 2>&1; then
-  (cd "$dist" && sha256sum ./*.tar.gz ./*.zip ./*.deb ./*.json | sort -k2 > SHA256SUMS)
+  (cd "$dist" && sha256sum ./*.tar.gz ./*.zip ./*.deb ./*.json ./install.sh | sort -k2 > SHA256SUMS)
 else
-  (cd "$dist" && shasum -a 256 ./*.tar.gz ./*.zip ./*.deb ./*.json | sort -k2 > SHA256SUMS)
+  (cd "$dist" && shasum -a 256 ./*.tar.gz ./*.zip ./*.deb ./*.json ./install.sh | sort -k2 > SHA256SUMS)
 fi
 echo "release artifacts written to $dist"

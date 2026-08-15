@@ -2,7 +2,7 @@ GO ?= go
 VERSION_SUFFIX := $(shell ./tools/version.sh suffix)
 LDFLAGS := -s -w -X github.com/rclone/rclone/fs.VersionSuffix=$(VERSION_SUFFIX)
 
-.PHONY: build alpha test-version test-deb test race fuzz vet contract check clean
+.PHONY: build alpha test-version test-install test-deb test race fuzz vet contract check clean
 
 build:
 	$(GO) build -buildvcs=false -trimpath -tags noselfupdate -ldflags '$(LDFLAGS)' -o bin/rclone ./cmd/rclone
@@ -12,6 +12,9 @@ alpha:
 
 test-version:
 	./tools/test-version.sh
+
+test-install:
+	./tools/test-install.sh
 
 test-deb:
 	./tools/test-deb-packages.sh dist
@@ -32,7 +35,7 @@ vet:
 contract:
 	./tools/test-rclone-contract.sh
 
-check: test-version vet test
+check: test-version test-install vet test
 
 clean:
 	$(GO) clean

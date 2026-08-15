@@ -34,6 +34,21 @@
 
 ## 安装
 
+### 一键安装
+
+Linux 与 macOS 可以直接安装最新的正式 Release：
+
+```console
+sudo -v
+curl -fsSL https://github.com/Ljzd-PRO/rclone-123pan/releases/latest/download/install.sh | sudo bash
+```
+
+安装脚本只访问 GitHub Releases，不会下载或构建 `main` 分支源码。它会选择当前系统和架构对应的预构建程序，验证 Release 中的 SHA-256 摘要与二进制版本，并原子安装到 `/usr/local/bin/rclone`。若该路径已有非本项目的 rclone，会先保留为 `rclone.official`；已安装版本与最新 Release 相同时不会重复下载程序。
+
+Windows 请使用下述压缩包方式安装。
+
+### 手动安装
+
 从 [Releases](https://github.com/Ljzd-PRO/rclone-123pan/releases) 下载对应平台的压缩包或 Debian 安装包。没有可用 Release 时，可从 [GitHub Actions 构建记录](https://github.com/Ljzd-PRO/rclone-123pan/actions/workflows/internal-alpha.yml) 下载自动构建工件。
 
 压缩包解压后直接运行 `rclone`；Windows 程序名为 `rclone.exe`。
