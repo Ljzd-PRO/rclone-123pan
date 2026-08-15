@@ -26,9 +26,9 @@ jobs:
       - run: go test ./...
       - run: go test -race ./...
       - name: Fuzz strict response envelope
-        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=5s
+        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzDecodeEnvelope$' -fuzztime=20000x
       - name: Fuzz upload part planning
-        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=5s
+        run: go test ./backend/123pan -run '^$' -fuzz '^FuzzUploadPartCount$' -fuzztime=20000x
       - name: Static analysis
         uses: golangci/golangci-lint-action@v9
         with:
