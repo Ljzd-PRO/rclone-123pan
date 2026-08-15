@@ -1,176 +1,60 @@
 <div align="center">
 
-<img src="assets/rclone-123pan-logo.png" alt="rclone-123pan 项目 Logo" width="220">
+<img src="assets/rclone-123pan-logo.png" alt="rclone-123pan 项目 Logo" width="200">
 
 # rclone-123pan
 
-**在 Windows、macOS 和 Linux 上，用 rclone 管理 123 网盘个人盘**
-
-上传 · 下载 · 同步 · MD5 校验 · 秒传 · 服务端复制 · 软删除
-
-**当前阶段：实验性 Alpha** · **内置 rclone：v1.75.0** · **界面与文档：中文**
+**为 rclone 提供 123 网盘个人盘支持**
 
 </div>
 
 > [!WARNING]
-> 本项目使用 123 网盘官方网页所调用、但未公开承诺兼容性的个人盘 API。接口可能随时变化，也可能触发账号风控。请先在新建的临时目录中用少量、可丢失的数据试用，不要把它作为重要数据的唯一副本。
+> 本项目使用 123 网盘官方 Web 客户端调用的个人盘接口。该接口未公开承诺兼容性，可能随网页更新而变化，也可能触发账号风控。重要数据请保留独立副本，并先在隔离目录中验证。
 
-## 这是什么？
+## 简介
 
-`rclone-123pan` 是一个包含 123 网盘个人盘支持的定制版 rclone。它可以让你在命令行、脚本、NAS 或服务器上管理自己的 123 网盘文件。
+`rclone-123pan` 是静态集成 123 网盘 backend 的定制 rclone 发行版，remote 类型为 `123pan`，主程序为 `rclone-123`。它保留 rclone 的命令、配置格式和生态能力，同时实现 123 网盘个人盘所需的认证、文件操作、传输与校验逻辑。
 
-普通用户**不需要安装 Go，也不需要自己编译程序**。下载与自己系统匹配的现成二进制，解压后即可使用。
+项目提供 Windows、macOS 和 Linux 预构建程序，以及 Debian/Ubuntu 安装包；也可以作为 out-of-tree backend 从源码构建。
 
-它目前适合这些场景：
+## 功能
 
-- 把电脑或 NAS 中的文件上传到 123 网盘；
-- 把网盘目录下载到本地；
-- 使用 MD5 检查两边文件是否一致；
-- 定期同步照片、文档或备份目录；
-- 在同一 123 网盘账号中快速复制、移动或重命名文件；
-- 用 rclone 的 VFS、serve、crypt 等高级功能包装 123 网盘。
-
-## 主要特性
-
-| 功能 | 对普通用户意味着什么 |
+| 功能 | 描述 |
 | --- | --- |
-| 上传与下载 | 支持普通文件、零字节文件、空目录和大文件分片上传。 |
-| MD5 校验 | 可以使用 `md5sum`、`check` 和 `--checksum` 检查内容，而不只比较文件大小。 |
-| 秒传 | 123 网盘已有相同 MD5 内容时，可能无需再次传输文件正文。 |
-| 服务端复制 | 同一账号内复制文件时，尽量由 123 网盘服务器完成，不经过本机下载再上传。 |
-| 安全覆盖 | 替换已有文件时先验证新文件，并保留可恢复的临时状态，降低覆盖失败导致数据丢失的风险。 |
-| Range / Seek | 支持按范围读取，便于媒体读取、VFS 和部分下载场景。 |
-| 软删除 | 删除只会移入 123 网盘回收站；本项目不提供永久删除或清空回收站。 |
-| 离线任务 | 可以通过 `rclone backend` 添加、查询和删除 123 网盘离线下载任务。 |
-| 多平台 | 提供 Windows amd64、macOS Intel/Apple 芯片、Linux amd64/arm64 构建，以及 Debian/Ubuntu `.deb` 安装包。 |
+| 文件操作 | 支持目录遍历、上传、下载、更新、移动、重命名、空目录和软删除。 |
+| 数据完整性 | 暴露文件 MD5，并在上传、秒传和覆盖完成后核验对象 ID、路径、大小与摘要。 |
+| 传输优化 | 支持秒传、并发分片上传、可重试数据源以及 Range、Seek 和 suffix range 读取。 |
+| 服务端复制 | 同一账号内复制文件时调用 123 网盘服务端接口，无需经本机下载再上传。 |
+| 安全覆盖 | 更新已有对象时使用 staging/backup 状态机，并按对象 ID 协调、验证和回滚。 |
+| rclone 集成 | 支持 rclone core 的 copy、sync、bisync、VFS、serve、crypt、RC 等通用能力。 |
+| 离线任务 | 通过 backend command 添加、查询和删除 123 网盘离线下载任务。 |
+| 删除语义 | 删除操作移入 123 网盘回收站，不实现永久删除或清空回收站。 |
 
-详细能力和限制见 [rclone 能力清单](docs/capabilities.md)。
+完整接口矩阵见 [能力清单](docs/capabilities.md)。
 
-## 五分钟开始使用
+## 安装
 
-### 第一步：下载现成程序
+从 [Releases](https://github.com/Ljzd-PRO/rclone-123pan/releases) 下载对应平台的压缩包或 Debian 安装包。没有可用 Release 时，可从 [GitHub Actions 构建记录](https://github.com/Ljzd-PRO/rclone-123pan/actions/workflows/internal-alpha.yml) 下载自动构建工件。
 
-有两种下载方式：
+压缩包解压后直接运行 `rclone-123`；Windows 程序名为 `rclone-123.exe`。
 
-1. **Release 版本（最方便）**：打开 [Releases 页面](https://github.com/Ljzd-PRO/rclone-123pan/releases)，展开最新版本的 Assets，下载与你的系统匹配的安装包或压缩包，同时下载 `SHA256SUMS`。
-
-2. **自动构建版本（适合私有测试）**：如果 Releases 页面暂时没有可用版本，请打开 [自动构建工件](https://github.com/Ljzd-PRO/rclone-123pan/actions/workflows/internal-alpha.yml)，选择最新的绿色运行记录，在页面底部下载 Artifacts。解压外层 artifact 后，会看到五个平台压缩包、两个 Debian 安装包和 `SHA256SUMS`。这类 artifact 目前只保留 7 天。
-
-> [!NOTE]
-> 这是私有仓库时，你必须先登录有访问权限的 GitHub 账号，才能下载 Release 或 Actions artifact。
-
-根据设备选择文件：
-
-| 你的设备 | 选择名称中包含 |
-| --- | --- |
-| 常见的 64 位 Windows 电脑 | `windows_amd64.zip` |
-| Apple 芯片 Mac（M1、M2、M3、M4 等） | `darwin_arm64.tar.gz` |
-| Intel 芯片 Mac | `darwin_amd64.tar.gz` |
-| Debian / Ubuntu，Intel 或 AMD 64 位 | `linux_amd64.deb` |
-| Debian / Ubuntu，ARM64 | `linux_arm64.deb` |
-| Intel / AMD 处理器的 Linux、NAS、服务器 | `linux_amd64.tar.gz` |
-| ARM64 Linux、ARM NAS 或开发板 | `linux_arm64.tar.gz` |
-
-当前不提供 32 位系统构建。
-
-### Debian / Ubuntu：推荐使用 `.deb` 安装
-
-Debian、Ubuntu、Linux Mint 等基于 Debian 的系统可以直接安装项目专属的 `rclone-123pan` 包。先确认系统架构：
+Debian、Ubuntu 及其衍生系统可以直接安装下载的 `.deb`：
 
 ```console
-dpkg --print-architecture
+sudo apt install ./rclone-123pan_*.deb
 ```
 
-输出 `amd64` 时选择 `linux_amd64.deb`，输出 `arm64` 时选择 `linux_arm64.deb`。下载后先核对 SHA-256，再安装本地文件：
+Debian 包安装的命令为 `/usr/bin/rclone-123`，可与发行版提供的 `rclone` 并存；卸载使用 `sudo apt remove rclone-123pan`。
 
-```console
-sha256sum rclone-123pan_*_linux_amd64.deb
-sudo apt install ./rclone-123pan_*_linux_amd64.deb
-rclone-123 version
-```
+## 配置
 
-ARM64 用户把命令中的 `amd64` 换成 `arm64`。安装包会把程序放到 `/usr/bin/rclone-123`，因此安装完成后可以在任意目录直接运行 `rclone-123`。还可以运行 `man rclone-123` 查看随包安装的中文手册。
+运行 `rclone-123 config`，新建 remote 并选择 `123pan`。输入 123 网盘手机号或邮箱、账号密码，其他选项通常保持默认值。配置完成后即可使用 `remote:path` 形式访问网盘。
 
-这个包不会占用 `/usr/bin/rclone`，可以和 Debian 仓库中的官方 `rclone` 同时安装。它不包含自动更新源；升级时下载新的 `.deb`，再次运行 `sudo apt install ./新文件.deb` 即可。卸载命令是：
+密码由 rclone obscure 后保存在配置文件中；obscure 不等同于加密保险箱，应限制配置文件的访问权限。
 
-```console
-sudo apt remove rclone-123pan
-```
+### 初始化交互示例
 
-卸载不会删除你的 rclone 配置文件。如果不再需要配置，请先运行 `rclone-123 config file` 确认准确位置，再自行决定是否保留；不要直接删除不确定的路径。
-
-### 第二步：校验并解压压缩包
-
-每次构建都会附带 `SHA256SUMS`。建议在运行程序前核对下载文件的 SHA-256：
-
-Windows PowerShell：
-
-```powershell
-Get-FileHash .\rclone-123pan_*_windows_amd64.zip -Algorithm SHA256
-```
-
-macOS：
-
-```console
-shasum -a 256 rclone-123pan_*_darwin_*.tar.gz
-```
-
-Linux：
-
-```console
-sha256sum rclone-123pan_*_linux_*.tar.gz
-```
-
-计算结果应与 `SHA256SUMS` 中对应文件的值完全相同。然后使用系统自带的解压功能解压压缩包。
-
-解压后的主要程序是：
-
-- Windows：`rclone-123.exe`
-- macOS / Linux：`rclone-123`
-
-在程序所在目录打开终端，先确认它可以运行。
-
-Windows PowerShell：
-
-```powershell
-.\rclone-123.exe version
-```
-
-macOS / Linux：
-
-```console
-chmod +x ./rclone-123
-./rclone-123 version
-```
-
-> [!TIP]
-> 下文统一使用命令名 `rclone-123`。如果你没有把程序目录加入系统的 `PATH`，Windows 请改用 `.\rclone-123.exe`，macOS / Linux 请改用 `./rclone-123`。
-
-这些构建目前没有商业代码签名。如果 Windows SmartScreen 或 macOS Gatekeeper 阻止运行，请先确认文件来自本仓库且 SHA-256 正确，再决定是否在系统安全设置中允许；不信任文件时不要绕过系统保护。
-
-### 第三步：连接你的 123 网盘账号
-
-运行交互式配置：
-
-```console
-rclone-123 config
-```
-
-按提示完成以下操作：
-
-1. 选择 `n`，新建一个 remote；
-2. 给它起一个容易记住的英文名称，例如 `my123`；
-3. 在存储类型列表中选择 `123pan`，描述为“123 网盘个人账号（实验性）”；
-4. 输入你的 123 网盘手机号或邮箱；
-5. 按提示输入账号密码；
-6. 普通用户无需修改高级设置，保持默认值即可；
-7. 确认保存配置。
-
-#### 完整初始化示例
-
-下面演示如何创建一个名为 `my123` 的 remote。示例账号 `user@example.com` 是虚构的，请换成你自己的 123 网盘手机号或邮箱。密码输入时终端不会显示字符，这是正常现象。
-
-这段记录来自当前项目实际构建的 `rclone-123`。参照 rclone 官方各后端文档的写法，存储类型列表中与本项目无关的条目以“省略”标记代替；除此以外，从首次创建到保存并退出的交互均完整保留。存储类型序号可能随 rclone 版本变化，直接输入 `123pan` 最稳妥。
+以下示例创建名为 `my123` 的 remote。账号为虚构值，存储类型列表中无关条目已省略。
 
 ```text
 No remotes found, make a new one?
@@ -238,242 +122,46 @@ q) Quit config
 e/n/d/r/c/s/q> q
 ```
 
-如果开头出现 `no overview data found for "123pan"`，这是当前固定版 rclone 对树外后端文档的已知提示，不代表配置失败，详见下方[常见问题](#为什么命令提示-no-overview-data-found-for-123pan)。首次运行时还可能提示配置文件尚不存在；完成上述保存后，程序会自动创建它。
+## 使用
 
-配置中的密码会经过 rclone obscure 处理后保存，但 obscure **不是加密保险箱**。能够读取 rclone 配置文件的人仍可能恢复密码，请保护好该文件。以下命令可以显示配置文件位置：
-
-```console
-rclone-123 config file
-```
-
-本后端不会把账号密码发送给 OpenList 公共服务或其他第三方初始化服务。登录和控制请求直接访问 123 网盘官方服务。
-
-### 第四步：确认连接成功
-
-假设刚才把 remote 命名为 `my123`：
+以下示例以 `my123` 为 remote；完整参数与命令说明见 [rclone 文档](https://rclone.org/docs/) 和 [命令索引](https://rclone.org/commands/)。
 
 ```console
-rclone-123 about my123:
-rclone-123 lsf my123:
+rclone-123 lsf my123:                                      # 列出网盘根目录
+rclone-123 copy ./data my123:backup --progress             # 上传本地目录
+rclone-123 sync ./data my123:backup --checksum --dry-run   # 预演同步
 ```
 
-`my123:` 末尾的英文冒号不能省略。如果第二条命令没有输出，也可能只是网盘根目录为空。
-
-建议先创建一个只用于试验的小目录：
-
-```console
-rclone-123 mkdir my123:rclone-test
-```
-
-然后准备一个包含少量小文件的本地 `test-data` 文件夹，执行第一次上传和下载：
-
-```console
-rclone-123 copy ./test-data my123:rclone-test --progress
-rclone-123 copy my123:rclone-test ./download-test --progress
-```
-
-确认内容无误后，再开始处理真实数据。
-
-## 常用命令
-
-下面示例继续使用 remote 名称 `my123`。路径中有空格时，请用英文双引号包住完整路径。
-
-### 查看文件
-
-```console
-# 查看根目录中的文件和文件夹
-rclone-123 lsf my123:
-
-# 用树状形式查看某个目录
-rclone-123 tree my123:Photos
-
-# 查看容量使用情况
-rclone-123 about my123:
-
-# 查看文件 MD5
-rclone-123 md5sum my123:Photos
-```
-
-### 上传文件
-
-上传一个本地文件夹的内容：
-
-```console
-rclone-123 copy ./Photos my123:Backup/Photos --progress
-```
-
-上传单个文件并指定目标文件名：
-
-```console
-rclone-123 copyto ./report.pdf my123:Documents/report.pdf --progress
-```
-
-### 下载文件
-
-```console
-rclone-123 copy my123:Photos ./Downloaded-Photos --progress
-```
-
-下载单个文件：
-
-```console
-rclone-123 copyto my123:Documents/report.pdf ./report.pdf --progress
-```
-
-### 校验两边内容
-
-123 网盘个人盘不能可靠地写入 rclone 所使用的修改时间。涉及备份正确性时，应使用 `--checksum`：
-
-```console
-rclone-123 check ./Photos my123:Backup/Photos --checksum
-```
-
-如果希望逐字节下载后校验，可以使用：
-
-```console
-rclone-123 check ./Photos my123:Backup/Photos --download
-```
-
-### 同步目录
-
-`sync` 会让目标目录变得和来源一致，目标中多余的文件会被删除。请始终先运行预演：
-
-```console
-rclone-123 sync ./Photos my123:Backup/Photos --checksum --dry-run
-```
-
-仔细检查输出，确认没有误删后再去掉 `--dry-run`：
-
-```console
-rclone-123 sync ./Photos my123:Backup/Photos --checksum --progress
-```
-
-> [!CAUTION]
-> 本后端的删除会移入 123 网盘回收站，但同步仍可能删除大量目标文件。第一次使用 `sync`、`move`、`delete` 或 `purge` 时，务必限定在新建的测试目录中。
-
-### 在网盘内复制或移动
-
-同一账号内复制单个文件：
-
-```console
-rclone-123 copyto my123:Documents/report.pdf my123:Archive/report-copy.pdf --progress
-```
-
-后端会优先使用 123 网盘服务端 Copy，不需要把文件下载到本机再上传。该功能仍处于 Alpha 验证阶段，请先用小文件和临时目录测试。
-
-移动目录内容：
-
-```console
-rclone-123 move my123:Inbox my123:Archive --progress
-```
-
-### 删除文件或空目录
-
-```console
-# 删除一个文件：移入123网盘回收站
-rclone-123 deletefile my123:Backup/old.zip
-
-# 删除一个已经为空的目录
-rclone-123 rmdir my123:Backup/empty-folder
-```
-
-需要恢复时，请使用 123 网盘官方客户端打开回收站。本项目不提供永久删除和清空回收站。
-
-## 离线下载任务
-
-> [!WARNING]
-> 离线任务命令已经通过状态化测试，但尚未完成隔离真实账号闭环。请先用体积很小、可删除的任务验证当前账号是否兼容。
-
-把一个 URL 添加到指定网盘目录：
-
-```console
-rclone-123 backend offline-add my123:Downloads "https://example.com/file.zip"
-```
-
-命令会返回 `task_id`。使用该 ID 查询状态或删除任务：
-
-```console
-rclone-123 backend offline-status my123: 123456
-rclone-123 backend offline-delete my123: 123456
-```
-
-删除离线任务不等于永久删除已经下载完成的网盘文件。
-
-## 使用前必须了解的限制
-
-- **仅支持个人账号密码登录。** 不支持短信、微信、扫码或自动验证码处理。
-- **不支持 123 开放平台、123Link 和 123Share。** 本项目只实现个人盘 remote 类型 `123pan`。
-- **API 可能漂移。** 123 网盘网页更新后，某些操作可能暂时失效。
-- **修改时间不可写。** 正确性敏感的同步和 bisync 应使用 `--checksum`。
-- **不支持公开链接。** 没有 `PublicLink`、分享链接或匿名分享功能。
-- **没有永久删除。** 删除仅进入回收站，也不能用本程序清空回收站。
-- **挂载能力因平台而异。** macOS 当前核心构建包含 `nfsmount`；其他原生 mount 依赖 macFUSE、WinFsp 或 FUSE 等系统组件，详见[兼容性说明](docs/compatibility.md)。
-- **可能使用临时磁盘。** 当输入源不能提供 MD5 或大小时，程序需要先缓存内容；默认最多在内存保留 10 MiB，更大的内容写入 rclone `--temp-dir`。
-- **不要执行 `rclone-123 selfupdate`。** 官方 rclone 更新包不包含本后端，会把定制程序替换掉。升级时请下载本项目的新版本。
-
-当前真实账号隔离测试覆盖了上传、下载、秒传、分页、Update、Move、DirMove、同步、bisync、VFS、serve、crypt 和 macOS nfsmount 等场景。服务端 Copy 已通过状态化测试和 rclone 契约测试，但仍需继续进行隔离真实账号复测。完整记录见[真实账号测试记录](docs/live-testing.md)。
-
-## 常见问题
-
-### 为什么命令提示 `no overview data found for "123pan"`？
-
-这是 rclone v1.75.0 对树外后端文档的已知兼容性提示，不代表登录或文件操作失败。只要后面的实际命令正常完成，可以暂时忽略。详见[兼容性说明](docs/compatibility.md)。
-
-### 登录失败或要求验证码怎么办？
-
-本项目不会绕过验证码或风控。请先在 123 网盘官方网站或官方客户端完成登录、验证或密码修改，等待账号恢复正常后再重试。避免让同一账号同时从多个相距较远的出口 IP 高频访问。
-
-### 为什么同步时建议加 `--checksum`？
-
-123 网盘个人盘不能设置 rclone 需要的修改时间。不加 `--checksum` 时，某些命令可能主要依据文件大小判断是否相同；同尺寸但内容不同的文件可能被误判。使用 MD5 校验更可靠，但会增加检查时间。
-
-### 删除的文件还能恢复吗？
-
-可以尝试在 123 网盘官方客户端的回收站中恢复。本项目只执行软删除，不会永久清除文件。
-
-### 覆盖或复制失败后出现 staging / backup ID 怎么办？
-
-请停止自动重试，保留完整错误信息，不要按名称批量删除临时对象。按照[恢复与回滚说明](docs/recovery.md)使用精确 ID 检查和恢复。
-
-### 如何升级？
-
-下载新的 `rclone-123` / `rclone-123.exe`，保留旧二进制和配置作为回退，然后先运行只读列表与小文件测试。不要使用 rclone 官方 `selfupdate`。
-
-## 高级配置
-
-普通用户建议保持默认值。需要调整时运行 `rclone-123 config`，编辑已有 remote 并进入高级设置。
-
-| 设置 | 默认值 | 什么时候需要修改 |
-| --- | --- | --- |
-| `root_folder_id` | `0` | 只允许 remote 访问某个已核验的网盘文件夹时。不了解文件夹数字 ID 就不要修改。 |
-| `upload_concurrency` | `3` | 网络或内存较紧张时调低；允许范围为 1 至 10。 |
-| `hash_memory_limit` | `10Mi` | 调整未知 MD5 输入在写入临时磁盘前可使用的内存上限。 |
-| `api_min_interval` | `700ms` | 遇到限流时可适当增大，不建议为了速度调小。 |
-| `verify_timeout` | `60s` | 服务器繁忙、写入完成后较久才可见时可适当增大。 |
-| `platform`、`encoding` | 安全默认值 | 协议或文件名兼容性调试使用，普通用户不要修改。 |
+## 约束与安全
+
+- 仅支持个人账号的手机号或邮箱加密码登录，不支持短信、扫码、微信或自动验证码处理。
+- 不包含 123 开放平台、123Link、123Share、公开链接和匿名分享能力。
+- 123 网盘个人盘不能可靠写入 rclone 修改时间；正确性敏感的同步和 bisync 应启用内容校验。
+- 服务端复制仅适用于同一账号；其他场景由 rclone core 回退为读取后上传。
+- 删除只进入回收站；永久删除和清空回收站不在本项目范围内。
+- 输入源缺少大小或 MD5 时可能缓存到内存或 rclone `--temp-dir`，以获得可重放且可校验的数据源。
+- 写操作失败并返回 staging、backup 或对象 ID 时，应停止盲目重试，并按 [恢复说明](docs/recovery.md)核验对象。
+- 不要使用 rclone 官方 `selfupdate`，它会把定制二进制替换为不含此 backend 的官方版本。
+
+更多协议限制、安全边界和离线任务用法见 [后端文档](docs/123pan.md) 与 [安全说明](docs/security.md)。
 
 ## 从源码构建
 
-只有开发者或没有匹配二进制的平台需要自行构建。需要 Git、Make 和 Go 1.25.0：
+构建需要 Git、Make 和项目要求的 Go 工具链：
 
 ```console
 git clone https://github.com/Ljzd-PRO/rclone-123pan.git
 cd rclone-123pan
 make build
-./bin/rclone-123 version
 ```
 
-Makefile 已启用 `noselfupdate`，生成的程序位于 `bin/rclone-123`。
+生成的程序位于 `bin/rclone-123`。
 
-## 更多文档
+## 文档
 
 - [后端配置与协议行为](docs/123pan.md)
 - [rclone 能力清单](docs/capabilities.md)
 - [平台兼容性](docs/compatibility.md)
-- [安全说明](docs/security.md)
-- [恢复与回滚](docs/recovery.md)
-- [测试说明](docs/testing.md)
-- [真实账号测试记录](docs/live-testing.md)
-- [来源固定与许可证边界](SOURCE_PINS.md)、[来源说明](PROVENANCE.md)、[许可说明](LICENSING.md)
-
-项目固定基于 rclone `v1.75.0`。OpenList `v4.2.5` 的 `drivers/123` 只用于提取可验证的协议事实和测试向量；项目不直接复制其 AGPL 表达性代码，也不包含 `123_open`、`123_link` 或 `123_share`。
+- [安全说明](docs/security.md)与[恢复说明](docs/recovery.md)
+- [测试说明](docs/testing.md)与[真实账号测试记录](docs/live-testing.md)
+- [来源说明](PROVENANCE.md)、[来源固定](SOURCE_PINS.md)与[许可说明](LICENSING.md)
