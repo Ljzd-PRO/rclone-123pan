@@ -65,7 +65,7 @@ func purl(path, version string) string {
 }
 
 func main() {
-	output := flag.String("output", "dist/rclone-123pan.cdx.json", "output CycloneDX JSON path")
+	output := flag.String("output", "dist/rclone.cdx.json", "output CycloneDX JSON path")
 	version := flag.String("version", "internal-alpha", "product version")
 	commit := flag.String("commit", "unknown", "source commit")
 	rcloneVersion := flag.String("rclone-version", "unknown", "pinned rclone version")
@@ -99,7 +99,7 @@ func main() {
 	}
 
 	document := bom{BOMFormat: "CycloneDX", SpecVersion: "1.6", SerialNumber: serial(*version + "|" + *commit), Version: 1}
-	document.Metadata.Component = component{Type: "application", Name: "rclone-123pan", Version: *version, BOMRef: "application:rclone-123pan@" + *version}
+	document.Metadata.Component = component{Type: "application", Name: "rclone", Version: *version, BOMRef: "application:rclone@" + *version}
 	document.Metadata.Properties = []property{
 		{Name: "org.opencontainers.image.revision", Value: *commit},
 		{Name: "rclone.pin", Value: *rcloneVersion + "@" + *rcloneCommit},

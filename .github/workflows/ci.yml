@@ -78,7 +78,7 @@ jobs:
           suffix=$(./tools/version.sh suffix)
           go build -buildvcs=false -trimpath -tags noselfupdate \
             -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=$suffix" \
-            -o /tmp/rclone-123pan ./cmd/rclone-123pan
+            -o /tmp/rclone ./cmd/rclone
 
   debian-package:
     name: Debian package
@@ -105,9 +105,9 @@ jobs:
       - name: Install and remove amd64 Debian package
         run: |
           product_version=$(./tools/version.sh product)
-          package="dist/rclone-123pan_${product_version}_linux_amd64.deb"
+          package="dist/rclone_${product_version}_linux_amd64.deb"
           sudo dpkg --install "$package"
-          test "$(dpkg-query --show --showformat='${Package}' rclone-123pan)" = "rclone-123pan"
-          /usr/bin/rclone-123pan version
-          sudo dpkg --remove rclone-123pan
-          test ! -e /usr/bin/rclone-123pan
+          test "$(dpkg-query --show --showformat='${Package}' rclone)" = "rclone"
+          /usr/bin/rclone version
+          sudo dpkg --remove rclone
+          test ! -e /usr/bin/rclone

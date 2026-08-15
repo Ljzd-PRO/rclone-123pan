@@ -5,7 +5,7 @@ LDFLAGS := -s -w -X github.com/rclone/rclone/fs.VersionSuffix=$(VERSION_SUFFIX)
 .PHONY: build alpha test-version test-deb test race fuzz vet contract check clean
 
 build:
-	$(GO) build -buildvcs=false -trimpath -tags noselfupdate -ldflags '$(LDFLAGS)' -o bin/rclone-123pan ./cmd/rclone-123pan
+	$(GO) build -buildvcs=false -trimpath -tags noselfupdate -ldflags '$(LDFLAGS)' -o bin/rclone ./cmd/rclone
 
 alpha:
 	./tools/build-alpha.sh

@@ -220,7 +220,7 @@ func (c *apiClient) call(ctx context.Context, srv *rest.Client, method, path str
 			ExtraHeaders: map[string]string{
 				"Origin":      webOrigin,
 				"Referer":     webOrigin + "/",
-				"User-Agent":  "rclone-123pan/alpha",
+				"User-Agent":  "rclone/alpha",
 				"Platform":    c.platform,
 				"App-Version": protocolVersion,
 			},

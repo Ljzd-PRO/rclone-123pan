@@ -68,7 +68,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: rclone-123pan_${{ steps.version.outputs.product_version }}
+          name: rclone_${{ steps.version.outputs.product_version }}
           path: dist/
           if-no-files-found: error
           retention-days: 7

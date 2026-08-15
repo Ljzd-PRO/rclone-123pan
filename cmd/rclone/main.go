@@ -1,4 +1,4 @@
-// Command rclone-123pan builds rclone with the out-of-tree 123Pan backend.
+// Command rclone builds rclone with the out-of-tree 123Pan backend.
 package main
 
 import (

@@ -15,7 +15,7 @@ sbom=$5
 provenance=$6
 output=$7
 
-for file in "$binary" "$sbom" "$provenance" "$root/LICENSE" "$root/LICENSING.md" "$root/packaging/deb/control.in" "$root/packaging/deb/rclone-123pan.1"; do
+for file in "$binary" "$sbom" "$provenance" "$root/LICENSE" "$root/LICENSING.md" "$root/packaging/deb/control.in" "$root/packaging/deb/rclone.1"; do
   if [ ! -f "$file" ]; then
     echo "Debian 打包输入不存在：$file" >&2
     exit 1
@@ -77,12 +77,12 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 package_root="$stage/root"
-doc_dir="$package_root/usr/share/doc/rclone-123pan"
+doc_dir="$package_root/usr/share/doc/rclone"
 guide_dir="$doc_dir/guides"
 man_dir="$package_root/usr/share/man/man1"
 mkdir -p "$package_root/DEBIAN" "$package_root/usr/bin" "$guide_dir" "$man_dir"
 
-install -m 0755 "$binary" "$package_root/usr/bin/rclone-123pan"
+install -m 0755 "$binary" "$package_root/usr/bin/rclone"
 install -m 0644 "$root/README.md" "$doc_dir/README.md"
 install -m 0644 "$root/RELEASE_NOTES.md" "$doc_dir/RELEASE_NOTES.md"
 install -m 0644 "$root/LICENSE" "$doc_dir/LICENSE"
@@ -92,10 +92,10 @@ install -m 0644 "$root/docs/capabilities.md" "$guide_dir/capabilities.md"
 install -m 0644 "$root/docs/compatibility.md" "$guide_dir/compatibility.md"
 install -m 0644 "$root/docs/recovery.md" "$guide_dir/recovery.md"
 install -m 0644 "$root/docs/security.md" "$guide_dir/security.md"
-install -m 0644 "$root/packaging/deb/rclone-123pan.1" "$man_dir/rclone-123pan.1"
+install -m 0644 "$root/packaging/deb/rclone.1" "$man_dir/rclone.1"
 install -m 0644 "$sbom" "$doc_dir/SBOM.cdx.json"
 install -m 0644 "$provenance" "$doc_dir/PROVENANCE.json"
-go version -m "$binary" | sed '1s|^[^:]*:|/usr/bin/rclone-123pan:|' > "$doc_dir/BUILDINFO.txt"
+go version -m "$binary" | sed '1s|^[^:]*:|/usr/bin/rclone:|' > "$doc_dir/BUILDINFO.txt"
 chmod 0644 "$doc_dir/BUILDINFO.txt"
 
 installed_size=$(du -sk "$package_root/usr" | awk '{print $1}')
