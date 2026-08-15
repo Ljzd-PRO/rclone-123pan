@@ -197,7 +197,7 @@ jobs:
             echo "Release 已存在，拒绝覆盖：$RELEASE_TAG" >&2
             exit 1
           fi
-          flags=(--verify-tag --title "rclone-123pan $RELEASE_TAG" --notes-file RELEASE_NOTES.md)
+          flags=(--verify-tag --title "$RELEASE_TAG" --notes-file RELEASE_NOTES.md)
           if [ "$IS_PRERELEASE" = "true" ]; then
             flags+=(--prerelease --latest=false)
           fi
