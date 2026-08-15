@@ -1,15 +1,17 @@
 GO ?= go
-RCLONE_TAG ?= v1.75.0
-VERSION ?= alpha
-LDFLAGS := -s -w -X github.com/rclone/rclone/fs.VersionSuffix=$(VERSION)-123pan
+VERSION_SUFFIX := $(shell ./tools/version.sh suffix)
+LDFLAGS := -s -w -X github.com/rclone/rclone/fs.VersionSuffix=$(VERSION_SUFFIX)
 
-.PHONY: build alpha test-deb test race fuzz vet contract check clean
+.PHONY: build alpha test-version test-deb test race fuzz vet contract check clean
 
 build:
-	$(GO) build -trimpath -tags noselfupdate -ldflags '$(LDFLAGS)' -o bin/rclone-123 ./cmd/rclone-123
+	$(GO) build -buildvcs=false -trimpath -tags noselfupdate -ldflags '$(LDFLAGS)' -o bin/rclone-123 ./cmd/rclone-123
 
 alpha:
 	./tools/build-alpha.sh
+
+test-version:
+	./tools/test-version.sh
 
 test-deb:
 	./tools/test-deb-packages.sh dist
@@ -30,7 +32,7 @@ vet:
 contract:
 	./tools/test-rclone-contract.sh
 
-check: vet test
+check: test-version vet test
 
 clean:
 	$(GO) clean

@@ -4,8 +4,12 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-plugin_version=${PLUGIN_VERSION:-0.1.0-alpha.1}
-rclone_version=v1.75.0
+product_version=$(./tools/version.sh product)
+release_version=$(./tools/version.sh release)
+downstream_revision=$(./tools/version.sh revision)
+rclone_version=$(./tools/version.sh rclone)
+version_suffix=$(./tools/version.sh suffix)
+rclone_commit=9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048
 source_commit=$(git rev-parse HEAD)
 source_epoch=${SOURCE_DATE_EPOCH:-$(git show -s --format=%ct HEAD)}
 dist="$root/dist"
@@ -19,7 +23,7 @@ case "$dist:$stage" in
     ;;
 esac
 
-for tool in go git tar gzip zip find touch dpkg-deb md5sum sed; do
+for tool in go git tar gzip zip find touch dpkg dpkg-deb md5sum sed awk grep; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "缺少构建依赖：$tool" >&2
     exit 1
@@ -29,13 +33,19 @@ done
 rm -rf -- "$dist"
 mkdir -p "$stage"
 
-sbom="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}.cdx.json"
-go run ./tools/sbom -output "$sbom" -version "$plugin_version+rclone-$rclone_version" -commit "$source_commit"
+sbom="$dist/rclone-123pan_${product_version}.cdx.json"
+go run ./tools/sbom \
+  -output "$sbom" \
+  -version "$product_version" \
+  -commit "$source_commit" \
+  -rclone-version "$rclone_version" \
+  -rclone-commit "$rclone_commit"
 
 go_version=$(go version | sed 's/"/\\"/g')
-provenance="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}.provenance.json"
-printf '{\n  "plugin_version": "%s",\n  "rclone_version": "%s",\n  "rclone_commit": "%s",\n  "source_commit": "%s",\n  "source_date_epoch": %s,\n  "go_version": "%s",\n  "build_tags": ["noselfupdate"],\n  "cgo_enabled": false\n}\n' \
-  "$plugin_version" "$rclone_version" "9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048" "$source_commit" "$source_epoch" "$go_version" > "$provenance"
+provenance="$dist/rclone-123pan_${product_version}.provenance.json"
+printf '{\n  "product_version": "%s",\n  "release_version": "%s",\n  "downstream_revision": %s,\n  "rclone_version": "%s",\n  "rclone_commit": "%s",\n  "source_commit": "%s",\n  "source_date_epoch": %s,\n  "go_version": "%s",\n  "build_tags": ["noselfupdate"],\n  "cgo_enabled": false\n}\n' \
+  "$product_version" "$release_version" "$downstream_revision" "$rclone_version" "$rclone_commit" \
+  "$source_commit" "$source_epoch" "$go_version" > "$provenance"
 
 targets='linux amd64
 linux arm64
@@ -44,7 +54,7 @@ darwin amd64
 darwin arm64'
 
 echo "$targets" | while read -r goos goarch; do
-  package="rclone-123pan_${plugin_version}_rclone-${rclone_version}_${goos}_${goarch}"
+  package="rclone-123pan_${product_version}_${goos}_${goarch}"
   package_dir="$stage/$package"
   mkdir -p "$package_dir"
   binary="$package_dir/rclone-123"
@@ -56,15 +66,14 @@ echo "$targets" | while read -r goos goarch; do
   echo "building $goos/$goarch"
   CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
     -buildvcs=false -trimpath -tags noselfupdate \
-    -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=${plugin_version}-123pan" \
+    -ldflags "-s -w -X github.com/rclone/rclone/fs.VersionSuffix=${version_suffix}" \
     -o "$binary" ./cmd/rclone-123
   go version -m "$binary" | sed "1s|^[^:]*:|$binary_name:|" > "$package_dir/BUILDINFO.txt"
   cp README.md RELEASE_NOTES.md LICENSE LICENSING.md "$sbom" "$provenance" "$package_dir/"
   if [ "$goos" = linux ]; then
-    deb="$dist/rclone-123pan_${plugin_version}_rclone-${rclone_version}_${goos}_${goarch}.deb"
+    deb="$dist/rclone-123pan_${product_version}_${goos}_${goarch}.deb"
     ./tools/build-deb.sh \
-      "$binary" "$goarch" "$plugin_version" "$rclone_version" "$source_epoch" \
-      "$sbom" "$provenance" "$deb"
+      "$binary" "$goarch" "$product_version" "$source_epoch" "$sbom" "$provenance" "$deb"
   fi
   find "$package_dir" -exec touch -h -d "@$source_epoch" {} +
   if [ "$goos" = windows ]; then

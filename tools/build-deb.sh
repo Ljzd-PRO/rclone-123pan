@@ -1,20 +1,19 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -ne 8 ]; then
-  echo "用法：$0 BINARY GOARCH PLUGIN_VERSION RCLONE_VERSION SOURCE_EPOCH SBOM PROVENANCE OUTPUT" >&2
+if [ "$#" -ne 7 ]; then
+  echo "用法：$0 BINARY GOARCH VERSION SOURCE_EPOCH SBOM PROVENANCE OUTPUT" >&2
   exit 2
 fi
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 binary=$1
 goarch=$2
-plugin_version=$3
-rclone_version=$4
-source_epoch=$5
-sbom=$6
-provenance=$7
-output=$8
+version=$3
+source_epoch=$4
+sbom=$5
+provenance=$6
+output=$7
 
 for file in "$binary" "$sbom" "$provenance" "$root/LICENSE" "$root/LICENSING.md" "$root/packaging/deb/control.in" "$root/packaging/deb/rclone-123.1"; do
   if [ ! -f "$file" ]; then
@@ -32,16 +31,16 @@ case "$goarch" in
     ;;
 esac
 
-case "$plugin_version" in
+case "$version" in
   [0-9]*) ;;
   *)
-    echo "Debian 包版本必须以数字开头：$plugin_version" >&2
+    echo "Debian 包版本必须以数字开头：$version" >&2
     exit 1
     ;;
 esac
-case "$plugin_version" in
+case "$version" in
   *[!0-9A-Za-z._+-]*)
-    echo "Debian 包版本包含非法字符：$plugin_version" >&2
+    echo "Debian 包版本包含非法字符：$version" >&2
     exit 1
     ;;
 esac
@@ -59,17 +58,15 @@ case "$output" in
     ;;
 esac
 
-for tool in go dpkg-deb md5sum install find sort sed du awk touch; do
+for tool in go dpkg dpkg-deb md5sum install find sort sed du awk touch; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "缺少 Debian 打包依赖：$tool" >&2
     exit 1
   fi
 done
 
-normalized_version=$(printf '%s' "$plugin_version" | sed 's/-/~/g; s/_/./g')
-deb_version="${normalized_version}+rclone${rclone_version#v}"
-if command -v dpkg >/dev/null 2>&1 && ! dpkg --validate-version "$deb_version" >/dev/null 2>&1; then
-  echo "生成的 Debian 版本无效：$deb_version" >&2
+if ! dpkg --validate-version "$version" >/dev/null 2>&1; then
+  echo "Debian 版本无效：$version" >&2
   exit 1
 fi
 
@@ -103,7 +100,7 @@ chmod 0644 "$doc_dir/BUILDINFO.txt"
 
 installed_size=$(du -sk "$package_root/usr" | awk '{print $1}')
 sed \
-  -e "s/@VERSION@/$deb_version/g" \
+  -e "s/@VERSION@/$version/g" \
   -e "s/@ARCH@/$deb_arch/g" \
   -e "s/@INSTALLED_SIZE@/$installed_size/g" \
   "$root/packaging/deb/control.in" > "$package_root/DEBIAN/control"

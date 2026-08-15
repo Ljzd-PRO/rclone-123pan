@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing release tag, for example v0.1.0-alpha.1
+        description: Existing tag matching the version derived from source
         required: true
         type: string
       prerelease:
         description: Mark as a prerelease
         required: true
-        default: true
+        default: false
         type: boolean
       draft:
         description: Create a draft release
@@ -51,8 +51,9 @@ jobs:
           REQUESTED_DRAFT: ${{ inputs.draft }}
         run: |
           tag=$REQUESTED_TAG
-          if ! printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z][0-9A-Za-z.-]*)?$'; then
-            echo "发布标签不符合语义版本格式：$tag" >&2
+          expected_tag=$(./tools/version.sh tag)
+          if [ "$tag" != "$expected_tag" ]; then
+            echo "发布标签必须与源码版本一致：期望 $expected_tag，实际 $tag" >&2
             exit 1
           fi
           if ! git show-ref --verify --quiet "refs/tags/$tag"; then
@@ -74,14 +75,11 @@ jobs:
             draft=$REQUESTED_DRAFT
           else
             draft=false
-            case "$tag" in
-              *-*) prerelease=true ;;
-              *) prerelease=false ;;
-            esac
+            prerelease=false
           fi
           {
             echo "tag=$tag"
-            echo "version=${tag#v}"
+            echo "version=$(./tools/version.sh release)"
             echo "prerelease=$prerelease"
             echo "draft=$draft"
           } >> "$GITHUB_OUTPUT"
@@ -99,6 +97,8 @@ jobs:
         with:
           go-version: 1.25.0
           cache: true
+      - name: Validate version derivation
+        run: ./tools/test-version.sh
       - run: go vet ./...
       - run: go test ./...
       - run: go test -race ./...
@@ -153,8 +153,6 @@ jobs:
             sudo apt-get install --yes zip dpkg
           fi
       - name: Build reproducible release artifacts
-        env:
-          PLUGIN_VERSION: ${{ needs.metadata.outputs.version }}
         run: ./tools/build-alpha.sh
       - name: Verify release checksums
         run: cd dist && sha256sum -c SHA256SUMS

@@ -10,10 +10,10 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      plugin_version:
-        description: Artifact version without the pinned rclone version; leave empty to generate one
+      build_metadata:
+        description: Optional SemVer build metadata; leave empty to generate a CI identifier
         required: false
-        default: 0.1.0-alpha.1
+        default: ""
 
 permissions:
   contents: read
@@ -39,34 +39,36 @@ jobs:
             sudo apt-get update
             sudo apt-get install --yes zip dpkg
           fi
-      - name: Resolve build version
+      - name: Resolve build metadata
         id: version
         env:
-          INPUT_VERSION: ${{ inputs.plugin_version }}
+          INPUT_METADATA: ${{ inputs.build_metadata }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$INPUT_VERSION" ]; then
-            version=$INPUT_VERSION
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$INPUT_METADATA" ]; then
+            metadata=$INPUT_METADATA
           else
             short_sha=$(git rev-parse --short=12 HEAD)
-            version="0.0.0-alpha.${GITHUB_RUN_NUMBER}.${short_sha}"
+            metadata="ci.${GITHUB_RUN_NUMBER}.${short_sha}"
           fi
-          if ! printf '%s\n' "$version" | grep -Eq '^[0-9][0-9A-Za-z._+-]*$'; then
-            echo "非法构建版本：$version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          product_version=$(BUILD_METADATA=$metadata ./tools/version.sh product)
+          {
+            echo "metadata=$metadata"
+            echo "product_version=$product_version"
+          } >> "$GITHUB_OUTPUT"
       - name: Build reproducible artifacts
         env:
-          PLUGIN_VERSION: ${{ steps.version.outputs.version }}
+          BUILD_METADATA: ${{ steps.version.outputs.metadata }}
         run: ./tools/build-alpha.sh
       - name: Verify checksums
         run: cd dist && sha256sum -c SHA256SUMS
       - name: Validate Debian packages
+        env:
+          BUILD_METADATA: ${{ steps.version.outputs.metadata }}
         run: ./tools/test-deb-packages.sh dist
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: rclone-123pan_${{ steps.version.outputs.version }}_rclone-v1.75.0
+          name: rclone-123pan_${{ steps.version.outputs.product_version }}
           path: dist/
           if-no-files-found: error
           retention-days: 7

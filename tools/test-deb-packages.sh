@@ -2,7 +2,8 @@
 set -eu
 
 dist=${1:-dist}
-rclone_version=v1.75.0
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+product_version=$("$root/tools/version.sh" product)
 
 for tool in dpkg-deb md5sum find grep head; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -18,7 +19,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 for arch in amd64 arm64; do
-  matches=$(find "$dist" -maxdepth 1 -type f -name "rclone-123pan_*_rclone-${rclone_version}_linux_${arch}.deb" -print)
+  matches=$(find "$dist" -maxdepth 1 -type f -name "rclone-123pan_${product_version}_linux_${arch}.deb" -print)
   count=$(printf '%s\n' "$matches" | grep -c . || true)
   if [ "$count" -ne 1 ]; then
     echo "${arch} Debian 包数量应为 1，实际为 $count" >&2
@@ -35,13 +36,10 @@ for arch in amd64 arm64; do
     exit 1
   fi
   version=$(dpkg-deb --field "$package" Version)
-  case "$version" in
-    *"+rclone${rclone_version#v}") ;;
-    *)
-      echo "Debian 版本未包含 rclone 固定版本：$version" >&2
-      exit 1
-      ;;
-  esac
+  if [ "$version" != "$product_version" ]; then
+    echo "Debian 版本不匹配：期望 $product_version，实际 $version" >&2
+    exit 1
+  fi
 
   extract="$test_root/$arch"
   mkdir -p "$extract/DEBIAN"
@@ -68,8 +66,7 @@ for arch in amd64 arm64; do
   case "$(uname -m):$arch" in
     x86_64:amd64|amd64:amd64|aarch64:arm64|arm64:arm64)
       version_output=$("$extract/usr/bin/rclone-123" version 2>&1)
-      printf '%s\n' "$version_output" | grep -F "rclone v1.75.0-" >/dev/null
-      printf '%s\n' "$version_output" | grep -F -- "-123pan" >/dev/null
+      printf '%s\n' "$version_output" | grep -F "rclone v${product_version}" >/dev/null
       ;;
   esac
 done
