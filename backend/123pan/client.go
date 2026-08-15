@@ -141,6 +141,9 @@ func (c *apiClient) login(ctx context.Context, badToken string) error {
 func (c *apiClient) do(ctx context.Context, method, path string, request, response any) error {
 	badToken := c.getToken()
 	err := c.call(ctx, c.apiSrv, method, path, request, 0, badToken, true, true, response)
+	if isAuthenticationChallengeError(err) {
+		return err
+	}
 	var apiErr *APIError
 	if err == nil || !errorsAsAPI(err, &apiErr) || apiErr.Code != 401 {
 		return err
@@ -157,6 +160,9 @@ func (c *apiClient) do(ctx context.Context, method, path string, request, respon
 func (c *apiClient) doNonIdempotent(ctx context.Context, method, path string, request, response any) error {
 	badToken := c.getToken()
 	err := c.call(ctx, c.apiSrv, method, path, request, 0, badToken, true, false, response)
+	if isAuthenticationChallengeError(err) {
+		return err
+	}
 	var apiErr *APIError
 	if err == nil || !errorsAsAPI(err, &apiErr) || apiErr.Code != 401 {
 		return err
@@ -257,7 +263,10 @@ func (c *apiClient) call(ctx context.Context, srv *rest.Client, method, path str
 			finalErr = errorsNewProtocol("control response exceeds 4 MiB")
 			return false, finalErr
 		}
-		finalErr = decodeEnvelope(body, resp.StatusCode, wantCode, response)
+		finalErr = markAuthenticationChallenge(decodeEnvelope(body, resp.StatusCode, wantCode, response))
+		if isAuthenticationChallengeError(finalErr) {
+			return false, finalErr
+		}
 		if fserrors.ShouldRetryHTTP(resp, retryHTTPStatuses) {
 			if retryAfter := parseRetryAfter(resp.Header.Get("Retry-After")); retryAfter > 0 {
 				finalErr = pacer.RetryAfterError(finalErr, retryAfter)

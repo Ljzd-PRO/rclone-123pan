@@ -92,6 +92,14 @@ Copy-Item .\rclone.exe $RcloneTarget -Force
 
 密码由 rclone obscure 后保存在配置文件中；obscure 不等同于加密保险箱，应限制配置文件的访问权限。
 
+如果 123 网盘返回账号安全风险、短信验证码或微信登录提示，请先在 [123 网盘官方网站](https://www.123pan.com/) 完成验证，再重新认证 remote：
+
+```console
+rclone config reconnect my123:
+```
+
+reconnect 使用配置中已保存的账号密码获取新 Token，并在读取到有效账号信息后才覆盖旧 Token。普通传输、mount、serve 和定时任务不会在后台等待验证码输入。
+
 ### 初始化交互示例
 
 以下示例创建名为 `my123` 的 remote。账号为虚构值，存储类型列表中无关条目已省略。
@@ -178,7 +186,7 @@ rclone sync ./data my123:backup --checksum --dry-run   # 预演同步
 
 ## 约束与安全
 
-- 仅支持个人账号的手机号或邮箱加密码登录，不支持短信、扫码、微信或自动验证码处理。
+- 仅支持个人账号的手机号或邮箱加密码登录；短信、扫码和微信验证必须在 123 网盘官方网站完成，随后使用 `rclone config reconnect` 重新认证。
 - 不包含 123 开放平台、123Link、123Share、公开链接和匿名分享能力。
 - 123 网盘个人盘不能可靠写入 rclone 修改时间；正确性敏感的同步和 bisync 应启用内容校验。
 - 服务端复制仅适用于同一账号；其他场景由 rclone core 回退为读取后上传。

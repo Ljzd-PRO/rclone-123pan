@@ -36,6 +36,7 @@ func init() {
 		Prefix:      "123pan",
 		Description: "123 网盘个人账号（实验性）",
 		NewFs:       NewFs,
+		Config:      Config,
 		CommandHelp: commandHelp,
 		Options: []fs.Option{
 			{Name: "user", Help: "123 网盘个人账号使用的手机号或邮箱。", Required: true, Sensitive: true},

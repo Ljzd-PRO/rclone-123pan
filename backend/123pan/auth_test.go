@@ -3,6 +3,7 @@ package _123pan
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +15,10 @@ import (
 	"time"
 
 	"github.com/ljzd/rclone-123pan/backend/123pan/api"
+	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/fs/fserrors"
 	"github.com/rclone/rclone/lib/pacer"
 )
 
@@ -41,9 +45,13 @@ func testClient(t *testing.T, handler http.Handler, user, token string) (*apiCli
 }
 
 func writeEnvelope(t *testing.T, w http.ResponseWriter, code int, data any) {
+	writeEnvelopeMessage(t, w, code, "", data)
+}
+
+func writeEnvelopeMessage(t *testing.T, w http.ResponseWriter, code int, message string, data any) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]any{"code": code, "data": data}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]any{"code": code, "message": message, "data": data}); err != nil {
 		t.Error(err)
 	}
 }
@@ -167,6 +175,169 @@ func TestLoginFailureDoesNotLeakPassword(t *testing.T) {
 	}
 	if strings.Contains(fmt.Sprint(err), "password-value") {
 		t.Fatalf("password leaked in error: %v", err)
+	}
+}
+
+func TestAuthenticationChallengeStopsBeforeRelogin(t *testing.T) {
+	var logins atomic.Int64
+	client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case api.SignInPath:
+			logins.Add(1)
+			writeEnvelope(t, w, 200, map[string]any{"token": "unexpected"})
+		case "/b/api" + api.UserInfoPath:
+			writeEnvelopeMessage(t, w, 401, "当前账号存在安全风险，请使用短信验证码或者微信进行登录。token=challenge-secret", nil)
+		default:
+			http.NotFound(w, r)
+		}
+	}), "13800138000", "old-token")
+
+	err := client.do(context.Background(), http.MethodGet, api.UserInfoPath, nil, &api.UserInfoData{})
+	if err == nil {
+		t.Fatal("expected authentication challenge")
+	}
+	if !fserrors.IsFatalError(err) {
+		t.Fatalf("challenge must be fatal, got %v", err)
+	}
+	var challenge *AuthenticationChallengeError
+	if !errors.As(err, &challenge) {
+		t.Fatalf("missing typed challenge in %v", err)
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != 401 {
+		t.Fatalf("missing underlying API error in %v", err)
+	}
+	if logins.Load() != 0 {
+		t.Fatalf("challenge triggered %d password logins", logins.Load())
+	}
+	message := err.Error()
+	for _, want := range []string{"https://www.123pan.com/", "rclone config reconnect <remote>:"} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("challenge guidance %q missing from %q", want, message)
+		}
+	}
+	if strings.Contains(message, "challenge-secret") {
+		t.Fatalf("challenge error leaked a secret: %q", message)
+	}
+	reconnectErr := reconnectChallengeError("my remote", err)
+	if !fserrors.IsFatalError(reconnectErr) || !strings.Contains(reconnectErr.Error(), `rclone config reconnect "my remote:"`) {
+		t.Fatalf("reconnect guidance is not shell-safe or lost fatal status: %v", reconnectErr)
+	}
+}
+
+func TestAuthenticationChallengeMarkers(t *testing.T) {
+	for _, message := range []string{
+		"请完成验证码后重试",
+		"Untrusted device: SMS verification required",
+		"Please use WeChat login",
+		"Account security risk",
+	} {
+		err := markAuthenticationChallenge(&APIError{HTTPStatus: http.StatusForbidden, Code: 403, Message: message})
+		if !isAuthenticationChallengeError(err) || !fserrors.IsFatalError(err) {
+			t.Fatalf("message %q was not classified as a fatal challenge: %v", message, err)
+		}
+	}
+	ordinary := markAuthenticationChallenge(&APIError{HTTPStatus: http.StatusForbidden, Code: 403, Message: "password is incorrect"})
+	if isAuthenticationChallengeError(ordinary) || fserrors.IsFatalError(ordinary) {
+		t.Fatalf("ordinary authentication failure was misclassified: %v", ordinary)
+	}
+}
+
+func reconnectTestConfig(token string) configmap.Simple {
+	return configmap.Simple{
+		"user":             "person@example.com",
+		"pass":             obscure.MustObscure("password-value"),
+		"access_token":     token,
+		"platform":         "web",
+		"api_min_interval": "0s",
+	}
+}
+
+func TestReconnectAuthenticationCommitsValidatedToken(t *testing.T) {
+	var logins atomic.Int64
+	var validations atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case api.SignInPath:
+			logins.Add(1)
+			writeEnvelope(t, w, 200, map[string]any{"token": "validated-token"})
+		case "/b/api" + api.UserInfoPath:
+			validations.Add(1)
+			if got := r.Header.Get("Authorization"); got != "Bearer validated-token" {
+				t.Errorf("unexpected authorization %q", got)
+			}
+			writeEnvelope(t, w, 0, map[string]any{"UID": 42})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	config := reconnectTestConfig("old-token")
+	if err := reconnectAuthentication(context.Background(), config, server.URL, server.URL+"/b/api", server.Client()); err != nil {
+		t.Fatal(err)
+	}
+	if config["access_token"] != "validated-token" {
+		t.Fatalf("validated token was not committed: %#v", config)
+	}
+	if logins.Load() != 1 || validations.Load() != 1 {
+		t.Fatalf("got %d logins and %d validations", logins.Load(), validations.Load())
+	}
+}
+
+func TestReconnectAuthenticationPreservesTokenOnChallenge(t *testing.T) {
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != api.SignInPath {
+			http.NotFound(w, r)
+			return
+		}
+		calls.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		writeEnvelopeMessage(t, w, 403, "当前账号存在安全风险，请使用短信验证码登录", nil)
+	}))
+	defer server.Close()
+
+	config := reconnectTestConfig("known-good-token")
+	err := reconnectAuthentication(context.Background(), config, server.URL, server.URL+"/b/api", server.Client())
+	if err == nil || !isAuthenticationChallengeError(err) || !fserrors.IsFatalError(err) {
+		t.Fatalf("expected fatal challenge, got %v", err)
+	}
+	if config["access_token"] != "known-good-token" {
+		t.Fatalf("challenge replaced persisted token: %#v", config)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("challenge was retried %d times by the pacer", calls.Load())
+	}
+}
+
+func TestReconnectAuthenticationPreservesTokenOnValidationFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case api.SignInPath:
+			writeEnvelope(t, w, 200, map[string]any{"token": "unvalidated-token"})
+		case "/b/api" + api.UserInfoPath:
+			writeEnvelopeMessage(t, w, 403, "account is disabled", nil)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	config := reconnectTestConfig("old-token")
+	err := reconnectAuthentication(context.Background(), config, server.URL, server.URL+"/b/api", server.Client())
+	if err == nil {
+		t.Fatal("expected validation failure")
+	}
+	if config["access_token"] != "old-token" {
+		t.Fatalf("unvalidated token was committed: %#v", config)
+	}
+}
+
+func TestConfigRejectsUnexpectedState(t *testing.T) {
+	out, err := Config(context.Background(), "remote", configmap.Simple{}, fs.ConfigIn{State: "unexpected"})
+	if err == nil || out != nil || !strings.Contains(err.Error(), "unsupported 123Pan config state") {
+		t.Fatalf("unexpected Config result out=%#v err=%v", out, err)
 	}
 }
 
