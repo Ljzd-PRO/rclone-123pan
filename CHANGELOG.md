@@ -1,5 +1,9 @@
 # 变更日志
 
+## v1.75.0-123pan.3 - 2026-08-17
+
+- 修复一键安装脚本使用未认证 GitHub REST API 解析 Latest Release，在公共出口超过每小时 60 次匿名限额后会返回 403；改为解析 GitHub Releases 公开网页重定向，不再依赖 API 配额。
+
 ## v1.75.0-123pan.2 - 2026-08-17
 
 - 增加从 GitHub Releases 安装预构建发行版的一键安装脚本；支持 Linux/macOS amd64/arm64、最新正式版或固定标签、SHA-256 与候选版本双重校验、官方程序一次性备份、原子替换和幂等更新。安装脚本作为 Release 资产发布并纳入摘要，CI/Release 使用隔离 fixture 验证其不会访问源码分支。

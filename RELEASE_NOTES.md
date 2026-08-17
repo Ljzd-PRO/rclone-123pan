@@ -4,13 +4,14 @@
 
 ## 对应上游版本
 
-本发行版基于 [rclone v1.75.0](https://github.com/rclone/rclone/releases/tag/v1.75.0)，固定上游 commit 为 `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`。版本号 `v1.75.0-123pan.2` 中，`v1.75.0` 表示对应的上游 rclone 版本，`123pan.2` 表示本项目针对该上游版本的第 2 个适配修订。
+本发行版基于 [rclone v1.75.0](https://github.com/rclone/rclone/releases/tag/v1.75.0)，固定上游 commit 为 `9ee9d0a0cafd5e5fe3b271d2280b090ab6e64048`。版本号 `v1.75.0-123pan.3` 中，`v1.75.0` 表示对应的上游 rclone 版本，`123pan.3` 表示本项目针对该上游版本的第 3 个适配修订。
 
 ## 主要变更
 
+- 修复一键安装脚本在 GitHub 匿名 API 配额耗尽后返回 403 的问题；Latest Release 改由公开网页重定向解析，不再依赖 REST API。
 - 增加只安装 GitHub 正式 Release 的一键安装脚本，支持平台识别、摘要与版本双重验证、一次性备份、原子替换及幂等更新。
 - 增加账号风控、短信验证码和微信登录提示的 fatal 识别，以及验证后可显式执行的 `rclone config reconnect` 事务式重新认证。
-- 版本统一为 `v<rclone版本>-123pan.<适配修订号>`，当前版本为 `v1.75.0-123pan.2`。
+- 版本统一为 `v<rclone版本>-123pan.<适配修订号>`，当前版本为 `v1.75.0-123pan.3`。
 - 基于 rclone v1.75.0 提供独立的 `123pan` 树外后端和五平台定制二进制。
 - 支持严格列表、MD5、Range/Seek 下载、秒传、预签名分片上传和可恢复 Update。
 - 支持按精确 ID 验证的 Move、DirMove、软删除和安全空目录删除。

@@ -8,7 +8,7 @@ Debian 包支持 `amd64` 与 `arm64`，适用于具备兼容 `dpkg`/`apt` 的 De
 
 ## 一键安装脚本
 
-Release 提供独立的 `install.sh`，仅支持 Linux/macOS 的 amd64 与 arm64。默认不接触源码分支，而是通过 GitHub `releases/latest` 选择最新的非草稿、非预发布版本，并下载与平台完全匹配的 `.tar.gz` 和同一 Release 的 `SHA256SUMS`。安装前依次验证归档摘要和候选二进制报告的版本，任一不匹配均在覆盖现有程序前失败。
+Release 提供独立的 `install.sh`，仅支持 Linux/macOS 的 amd64 与 arm64。默认不接触源码分支，而是通过 GitHub `releases/latest` 的公开网页重定向选择最新的非草稿、非预发布版本，不调用受匿名限额约束的 GitHub REST API；随后下载与平台完全匹配的 `.tar.gz` 和同一 Release 的 `SHA256SUMS`。安装前依次验证归档摘要和候选二进制报告的版本，任一不匹配均在覆盖现有程序前失败。
 
 默认安装路径是 `/usr/local/bin/rclone`。可以在直接执行脚本时通过绝对路径环境变量 `RCLONE_INSTALL_DIR` 修改目录，也可以向脚本传入一个完整的已发布标签以固定版本。相同版本属于幂等成功，不重复下载归档；覆盖非本项目程序时只在备份不存在的情况下创建 `<目标路径>.official`。新程序先写入同目录临时文件，再以 rename 原子替换目标。
 

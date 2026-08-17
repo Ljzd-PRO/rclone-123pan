@@ -3,7 +3,6 @@
 set -Eeuo pipefail
 
 readonly repository="Ljzd-PRO/rclone-123pan"
-readonly api_base="https://api.github.com/repos/${repository}"
 readonly release_base="https://github.com/${repository}/releases"
 
 tmp_dir=""
@@ -52,12 +51,6 @@ download() {
   if ! curl "${curl_args[@]}" --header "Accept: ${accept}" --output "$output" "$url"; then
     fail "无法下载 ${url}；请检查网络连接以及 Release 是否存在"
   fi
-}
-
-download_json() {
-  local url=$1
-  local output=$2
-  download 'application/vnd.github+json' "$url" "$output"
 }
 
 download_asset() {
@@ -150,9 +143,13 @@ umask 022
 tmp_dir=$(mktemp -d 2>/dev/null || mktemp -d -t 'rclone-123pan-install.XXXXXXXXXX')
 
 if [[ "$requested_tag" == latest ]]; then
-  release_json="$tmp_dir/release.json"
-  download_json "${api_base}/releases/latest" "$release_json"
-  release_tag=$(sed -n 's/^[[:space:]]*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' "$release_json" | sed -n '1p')
+  if ! latest_url=$(curl "${curl_args[@]}" --head --output /dev/null --write-out '%{url_effective}' "${release_base}/latest"); then
+    fail "无法解析最新 Release；请检查网络连接以及 Release 是否存在"
+  fi
+  case "$latest_url" in
+    "${release_base}/tag/"*) release_tag=${latest_url#"${release_base}/tag/"} ;;
+    *) fail "最新 Release 重定向地址无效：$latest_url" ;;
+  esac
 else
   release_tag=$requested_tag
 fi

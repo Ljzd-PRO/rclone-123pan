@@ -43,8 +43,6 @@ else
 fi
 printf '%s  ./%s\n' "$archive_checksum" "$archive_name" > "$fixtures/SHA256SUMS"
 printf '%064d  ./%s\n' 0 "$archive_name" > "$fixtures/SHA256SUMS.bad"
-printf '{\n  "tag_name": "%s"\n}\n' "$release_tag" > "$fixtures/release.json"
-
 # shellcheck disable=SC2016
 printf '%s\n' \
   '#!/bin/sh' \
@@ -61,27 +59,32 @@ printf '%s\n' \
   '#!/bin/sh' \
   'set -eu' \
   'output=' \
+  'write_out=' \
   'url=' \
   'while [ "$#" -gt 0 ]; do' \
   '  case "$1" in' \
   '    --output) output=$2; shift 2 ;;' \
+  '    --write-out) write_out=$2; shift 2 ;;' \
   '    https://*) url=$1; shift ;;' \
   '    *) shift ;;' \
   '  esac' \
   'done' \
-  'test -n "$output"' \
   'test -n "$url"' \
   'printf "%s\n" "$url" >> "$CURL_LOG"' \
   'case "$url" in' \
-  '  */releases/latest) cp "$FIXTURE_DIR/release.json" "$output" ;;' \
+  '  */releases/latest)' \
+  '    test "$write_out" = "%{url_effective}"' \
+  '    printf "https://github.com/Ljzd-PRO/rclone-123pan/releases/tag/%s" "$RELEASE_TAG"' \
+  '    ;;' \
   '  */SHA256SUMS)' \
+  '    test -n "$output"' \
   '    if [ "${BAD_CHECKSUM:-0}" = 1 ]; then' \
   '      cp "$FIXTURE_DIR/SHA256SUMS.bad" "$output"' \
   '    else' \
   '      cp "$FIXTURE_DIR/SHA256SUMS" "$output"' \
   '    fi' \
   '    ;;' \
-  '  *.tar.gz) cp "$FIXTURE_ARCHIVE" "$output" ;;' \
+  '  *.tar.gz) test -n "$output"; cp "$FIXTURE_ARCHIVE" "$output" ;;' \
   '  *) echo "unexpected URL: $url" >&2; exit 1 ;;' \
   'esac' > "$fake_bin/curl"
 chmod 0755 "$fake_bin/curl"
@@ -98,6 +101,7 @@ PATH="$fake_bin:$PATH" \
   FIXTURE_DIR="$fixtures" \
   FIXTURE_ARCHIVE="$fixture_archive" \
   CURL_LOG="$curl_log" \
+  RELEASE_TAG="$release_tag" \
   RCLONE_INSTALL_DIR="$install_dir" \
   "$root/install.sh" >/dev/null
 
@@ -112,6 +116,7 @@ PATH="$fake_bin:$PATH" \
   FIXTURE_DIR="$fixtures" \
   FIXTURE_ARCHIVE="$fixture_archive" \
   CURL_LOG="$curl_log" \
+  RELEASE_TAG="$release_tag" \
   RCLONE_INSTALL_DIR="$install_dir" \
   "$root/install.sh" >/dev/null
 [ "$(wc -l < "$curl_log" | tr -d ' ')" = 4 ] || fail "相同版本仍重复下载发行版工件"
@@ -120,6 +125,7 @@ PATH="$fake_bin:$PATH" \
   FIXTURE_DIR="$fixtures" \
   FIXTURE_ARCHIVE="$fixture_archive" \
   CURL_LOG="$curl_log" \
+  RELEASE_TAG="$release_tag" \
   RCLONE_INSTALL_DIR="$install_dir" \
   "$root/install.sh" "$release_tag" >/dev/null
 [ "$(wc -l < "$curl_log" | tr -d ' ')" = 4 ] || fail "指定已安装标签仍发生网络请求"
@@ -131,6 +137,7 @@ if PATH="$fake_bin:$PATH" \
   FIXTURE_DIR="$fixtures" \
   FIXTURE_ARCHIVE="$fixture_archive" \
   CURL_LOG="$curl_log" \
+  RELEASE_TAG="$release_tag" \
   BAD_CHECKSUM=1 \
   RCLONE_INSTALL_DIR="$bad_install_dir" \
   "$root/install.sh" "$release_tag" >"$tmp_dir/bad-checksum.log" 2>&1; then
@@ -144,6 +151,7 @@ if PATH="$fake_bin:$PATH" \
   FIXTURE_DIR="$fixtures" \
   FIXTURE_ARCHIVE="$fixture_archive" \
   CURL_LOG="$curl_log" \
+  RELEASE_TAG="$release_tag" \
   FAKE_OS=FreeBSD \
   RCLONE_INSTALL_DIR="$tmp_dir/unsupported" \
   "$root/install.sh" "$release_tag" >"$tmp_dir/unsupported.log" 2>&1; then
@@ -154,6 +162,9 @@ after_unsupported=$(wc -l < "$curl_log" | tr -d ' ')
 
 if grep -Eq 'archive/refs|refs/heads|raw\.githubusercontent\.com|git clone' "$root/install.sh"; then
   fail "安装脚本引用了源码分支"
+fi
+if grep -F 'api.github.com' "$root/install.sh" >/dev/null || grep -F 'api.github.com' "$curl_log" >/dev/null; then
+  fail "安装脚本依赖 GitHub API，可能受匿名 API 限流影响"
 fi
 if grep -Eq 'archive/refs|refs/heads|raw\.githubusercontent\.com' "$curl_log"; then
   fail "安装请求访问了源码分支"
